@@ -25,7 +25,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
-// Datum Hulpfuncties
 const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
 const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
 const getTodayString = () => new Date().toISOString().split('T')[0]; 
@@ -34,16 +33,14 @@ const toDateString = (dateObj) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// Changelog Data
 const CHANGELOG = [
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
-    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
-    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Debounce (anti-spam) beveiliging ingebouwd voor API zoekopdrachten", "Google Books én OpenLibrary succesvol en veilig gecombineerd", "Dagen in de leesstreak flink vergroot op desktop weergave"] },
+    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones", "Zoekfunctie toegevoegd voor boeken"] },
+    { version: "7.0.0", date: "Oktober 2026", changes: ["Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
 ];
 
 function BoekenApp() {
-    // Authenticatie & Profiel State
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -52,19 +49,16 @@ function BoekenApp() {
     const [allUsers, setAllUsers] = useState([]);
     const [dbError, setDbError] = useState(false);
 
-    // Impersonation State & Mobile Menu
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
 
-    // App Data State
     const [books, setBooks] = useState([]);
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
     const [searchQuery, setSearchQuery] = useState('');
 
-    // UI State
     const [activeTab, setActiveTab] = useState('schappen');
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
@@ -76,17 +70,15 @@ function BoekenApp() {
     const [errorMsg, setErrorMsg] = useState('');
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
 
-    // Nieuwe States voor Kalender & Streak Navigatie
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
     const [streakWeekOffset, setStreakWeekOffset] = useState(0);
 
-    // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
     const [isSearchingTitle, setIsSearchingTitle] = useState(false);
+    const searchTimeoutRef = useRef(null);
 
-    // Form States
     const initialBookState = { title: '', author: '', shelfId: '', cover: '', isbn: '', totalPages: '', pagesRead: 0 };
     const [newBook, setNewBook] = useState(initialBookState);
     const [newShelf, setNewShelf] = useState({ name: '', description: '' });
@@ -163,7 +155,7 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
-    // Gecombineerde API Fetch (Google Books + OpenLibrary) via ISBN
+    // Gecombineerde API Fetch (Google Books + OpenLibrary) via ISBN met veilige Error Catching
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
@@ -174,24 +166,28 @@ function BoekenApp() {
         // 1. Probeer eerst Google Books
         try {
             const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${queryIsbn}`);
-            const data = await res.json();
-            if (data.items && data.items.length > 0) {
-                const info = data.items[0].volumeInfo;
-                const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
-                foundBook = { title: info.title, author: info.authors?.[0], cover: coverUrl, totalPages: info.pageCount };
+            if(res.ok) {
+                const data = await res.json();
+                if (data.items && data.items.length > 0) {
+                    const info = data.items[0].volumeInfo;
+                    const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
+                    foundBook = { title: info.title, author: info.authors?.[0], cover: coverUrl, totalPages: info.pageCount };
+                }
             }
-        } catch (e) { console.error('Google Books ISBN fetch error:', e); }
+        } catch (e) { console.warn('Google Books ISBN fetch error:', e); }
         
-        // 2. Als Google Books faalt, probeer OpenLibrary
+        // 2. Als Google Books faalt, probeer OpenLibrary (met veilige error catch)
         if (!foundBook) {
             try {
                 const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${queryIsbn}&format=json&jscmd=data`);
-                const data = await res.json();
-                const info = data[`ISBN:${queryIsbn}`];
-                if (info) {
-                    foundBook = { title: info.title, author: info.authors?.[0]?.name, cover: info.cover?.large || info.cover?.medium, totalPages: info.number_of_pages };
+                if(res.ok) {
+                    const data = await res.json();
+                    const info = data[`ISBN:${queryIsbn}`];
+                    if (info) {
+                        foundBook = { title: info.title, author: info.authors?.[0]?.name, cover: info.cover?.large || info.cover?.medium, totalPages: info.number_of_pages };
+                    }
                 }
-            } catch (e) { console.error('OpenLibrary ISBN fetch error:', e); }
+            } catch (e) { console.warn('OpenLibrary ISBN fetch error:', e); }
         }
         
         if (foundBook) {
@@ -203,53 +199,67 @@ function BoekenApp() {
         setIsFetchingIsbn(false);
     };
 
-    // Gecombineerde API Suggesties (Google Books + OpenLibrary) voor Titel/Auteur
-    const handleTitleChange = async (e) => {
+    // Gecombineerde API Suggesties (Google Books + OpenLibrary) met DEBOUNCE (Anti-Spam)
+    const handleTitleChange = (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
-        if(q.length < 3) { setTitleSuggestions([]); return; }
+        
+        // Wis de vorige timer als je nog aan het typen bent
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        
+        if(q.length < 3) { 
+            setTitleSuggestions([]); 
+            setIsSearchingTitle(false);
+            return; 
+        }
+
         setIsSearchingTitle(true);
         
-        let combinedResults = [];
-        
-        // Haal data van Google Books
-        try {
-            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`);
-            const data = await res.json();
-            if (data.items) {
-                const gbResults = data.items.map(item => ({
-                    source: 'google',
-                    id: item.id,
-                    title: item.volumeInfo.title,
-                    author: item.volumeInfo.authors ? item.volumeInfo.authors[0] : null,
-                    totalPages: item.volumeInfo.pageCount,
-                    cover: item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:')
-                }));
-                combinedResults = [...combinedResults, ...gbResults];
-            }
-        } catch(err) { console.error('Google Books suggesties error:', err); }
+        // Wacht 600 milliseconden nadat je gestopt bent met typen
+        searchTimeoutRef.current = setTimeout(async () => {
+            let combinedResults = [];
+            
+            // Haal data van Google Books
+            try {
+                const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`);
+                if(res.ok) {
+                    const data = await res.json();
+                    if (data.items) {
+                        const gbResults = data.items.map(item => ({
+                            id: item.id,
+                            title: item.volumeInfo.title,
+                            author: item.volumeInfo.authors ? item.volumeInfo.authors[0] : null,
+                            totalPages: item.volumeInfo.pageCount,
+                            cover: item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:')
+                        }));
+                        combinedResults = [...combinedResults, ...gbResults];
+                    }
+                }
+            } catch(err) { console.warn('Google Books suggesties error:', err); }
 
-        // Haal data van OpenLibrary
-        try {
-            const res = await fetch(`https://search.openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=5`);
-            const data = await res.json();
-            if (data.docs) {
-                const olResults = data.docs.map(doc => ({
-                    source: 'openlibrary',
-                    id: doc.key,
-                    title: doc.title,
-                    author: doc.author_name ? doc.author_name[0] : null,
-                    totalPages: doc.number_of_pages_median,
-                    cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null
-                }));
-                combinedResults = [...combinedResults, ...olResults];
-            }
-        } catch(err) { console.error('OpenLibrary suggesties error:', err); }
-        
-        // Deduplicatie op titel
-        const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title, item])).values());
-        setTitleSuggestions(uniqueResults.slice(0, 5)); // Toon maximaal 5 unieke resultaten
-        setIsSearchingTitle(false);
+            // Haal data van OpenLibrary
+            try {
+                const res = await fetch(`https://search.openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=4`);
+                if(res.ok) {
+                    const data = await res.json();
+                    if (data.docs) {
+                        const olResults = data.docs.map(doc => ({
+                            id: doc.key,
+                            title: doc.title,
+                            author: doc.author_name ? doc.author_name[0] : null,
+                            totalPages: doc.number_of_pages_median,
+                            cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null
+                        }));
+                        combinedResults = [...combinedResults, ...olResults];
+                    }
+                }
+            } catch(err) { console.warn('OpenLibrary suggesties error:', err); }
+            
+            // Deduplicatie op titel
+            const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title?.toLowerCase(), item])).values());
+            setTitleSuggestions(uniqueResults.slice(0, 6)); // Toon maximaal 6 unieke resultaten
+            setIsSearchingTitle(false);
+        }, 600); // 600ms debounce tijd
     };
 
     const selectTitleSuggestion = (item) => {
@@ -426,13 +436,11 @@ function BoekenApp() {
     const hasReadToday = isToday(stats.lastReadDate);
     const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
 
-    // Filter Books by Search Query
     const filteredBooks = books.filter(b => 
         b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
-    // Kalender opbouw variabelen
     const calYear = currentMonthDate.getFullYear();
     const calMonth = currentMonthDate.getMonth();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -470,7 +478,6 @@ function BoekenApp() {
         return days;
     };
 
-    // Render Compact Weekly Streak (Starting on Monday, with Arrows)
     const renderWeeklyStreak = () => {
         const today = new Date();
         const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
@@ -576,14 +583,17 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-3xl md:text-5xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm md:text-lg text-stone-400 font-medium">dagen</span></p>
+                                                    {/* HIER IS DE STREAK FLINK VERGROOT OP DESKTOP */}
+                                                    <p className="text-4xl lg:text-7xl font-black text-stone-800 leading-none tracking-tighter">{stats.currentStreak} <span className="text-base lg:text-2xl text-stone-400 font-medium tracking-normal">dagen</span></p>
                                                 </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="hidden sm:block w-px h-12 bg-stone-200"></div>
+                                        <div className="hidden sm:block w-px h-16 lg:h-20 bg-stone-200"></div>
                                         
-                                        {renderWeeklyStreak()}
+                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                                            {renderWeeklyStreak()}
+                                        </div>
                                     </div>
                                     <div className="w-full lg:w-auto flex justify-end mt-2 lg:mt-0">
                                         <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full lg:w-auto px-4 py-3 sm:py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
@@ -725,7 +735,6 @@ function BoekenApp() {
                                 <h2 className="text-3xl font-black flex items-center gap-3"><Shield className="text-red-500" size={36}/> Systeem Beheer</h2>
                                 
                                 <div className="bg-white rounded-3xl shadow-md overflow-hidden">
-                                    {/* Desktop Table View */}
                                     <div className="hidden md:block overflow-x-auto">
                                         <table className="w-full text-left">
                                             <thead className="bg-stone-100 text-stone-600 text-sm"><tr><th className="p-4">Naam</th><th className="p-4">Email</th><th className="p-4">Rol</th><th className="p-4 text-right">Acties</th></tr></thead>
@@ -748,8 +757,6 @@ function BoekenApp() {
                                             </tbody>
                                         </table>
                                     </div>
-
-                                    {/* Mobile Cards View */}
                                     <div className="block md:hidden divide-y divide-stone-100">
                                         {allUsers.map(u => (
                                             <div key={u.uid} className="p-4 flex flex-col gap-3">
@@ -776,7 +783,6 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -800,7 +806,6 @@ function BoekenApp() {
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none text-sm transition-colors" placeholder="Bijv. De Hobbit of Tolkien" />
                                         
-                                        {/* Loading state voor zoeken */}
                                         {isSearchingTitle && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
                                                 <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -808,7 +813,6 @@ function BoekenApp() {
                                             </div>
                                         )}
 
-                                        {/* Suggesties Kadertje */}
                                         {titleSuggestions.length > 0 && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
                                                 <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
@@ -844,7 +848,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -871,7 +874,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Share Shelf Modal */}
             {shareShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -896,7 +898,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Edit Shelf Modal */}
             {editShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -906,12 +907,10 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* View/Edit Book Modal */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]">
@@ -966,7 +965,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
