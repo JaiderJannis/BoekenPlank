@@ -36,11 +36,11 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
     { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken toegevoegd", "Deel-rechten inzien en intrekken (Stop Delen) toegevoegd", "Visueel weekoverzicht (vlammetjes) toegevoegd aan de streak", "Covers verkleind voor meer overzicht", "Vlammetjes toegevoegd aan kalenderweergave"] },
     { version: "5.0.0", date: "Oktober 2026", changes: ["Volledige Maandkalender toegevoegd", "Leesactiviteit handmatig toevoegen op specifieke dagen", "Schappen delen met andere gebruikers (Kopieer-functie)"] },
-    { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] },
-    { version: "3.0.0", date: "Oktober 2026", changes: ["Mobielvriendelijk (Responsive) met inklapbaar menu toegevoegd", "Schappen (categorieën) kunnen nu achteraf bewerkt worden", "Versiegeschiedenis paneel toegevoegd"] }
+    { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] }
 ];
 
 function BoekenApp() {
@@ -63,7 +63,7 @@ function BoekenApp() {
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
-    const [searchQuery, setSearchQuery] = useState(''); // Zoekfunctie state
+    const [searchQuery, setSearchQuery] = useState('');
 
     // UI State
     const [activeTab, setActiveTab] = useState('schappen');
@@ -410,7 +410,7 @@ function BoekenApp() {
         return days;
     };
 
-    // Render Weekly Streak
+    // Render Compact Weekly Streak
     const renderWeeklyStreak = () => {
         const days = [];
         for(let i=6; i>=0; i--) {
@@ -420,15 +420,15 @@ function BoekenApp() {
             const hasRead = logsByDate[dStr] ? true : false;
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             days.push(
-                <div key={i} className="flex flex-col items-center gap-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
-                        {hasRead ? <Flame size={16} className="text-orange-500" /> : <span className="text-xs text-stone-400 font-bold">{dayName.charAt(0)}</span>}
+                <div key={i} className="flex flex-col items-center gap-1 min-w-[32px]">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
+                        {hasRead ? <Flame size={14} className="text-orange-500" /> : <span className="text-[10px] text-stone-400 font-bold">{dayName.charAt(0)}</span>}
                     </div>
-                    <span className="text-[10px] text-stone-500 font-bold uppercase">{dayName}</span>
+                    <span className="text-[9px] text-stone-500 font-bold uppercase">{dayName}</span>
                 </div>
             );
         }
-        return <div className="flex gap-2 mt-4 pt-4 border-t border-stone-100 w-full justify-between">{days}</div>;
+        return <div className="flex gap-1.5 sm:gap-2 justify-between sm:justify-start w-full sm:w-auto">{days}</div>;
     };
 
     return (
@@ -489,23 +489,33 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle') && (
                             <div className="mb-8">
-                                <div className="bg-white rounded-3xl p-5 sm:p-6 mb-8 shadow-sm border border-stone-200/60 flex flex-col md:flex-row items-center justify-between gap-6">
-                                    <div className="flex flex-col flex-1 w-full md:w-auto">
-                                        <div className="flex items-center gap-4 mb-2">
-                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl"><Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={32} /></div>
+                                {/* Compacte Lees Streak Widget */}
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
+                                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
+                                            </div>
                                             <div>
-                                                <p className="text-sm text-stone-500 font-bold uppercase tracking-wider">Huidige Lees Streak</p>
-                                                <p className="text-3xl font-black text-stone-800">{stats.currentStreak} <span className="text-lg text-stone-400 font-medium">dagen</span></p>
+                                                <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                                <p className="text-2xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm text-stone-400 font-medium">dagen</span></p>
                                             </div>
                                         </div>
-                                        {renderWeeklyStreak()}
+                                        
+                                        <div className="hidden sm:block w-px h-12 bg-stone-200"></div>
+                                        
+                                        {/* Weekoverzicht direct naast de streak */}
+                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                                            {renderWeeklyStreak()}
+                                        </div>
                                     </div>
-                                    <div className="w-full md:w-auto flex justify-end">
-                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                            {hasReadToday ? <><CheckCircle2 size={16}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
+                                    <div className="w-full lg:w-auto flex justify-end mt-2 lg:mt-0">
+                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full lg:w-auto px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                            {hasReadToday ? <><CheckCircle2 size={16}/> Vandaag Gelezen</> : 'Gelezen!'}
                                         </button>
                                     </div>
                                 </div>
+
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                     <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">{activeTab === 'schappen' ? 'Mijn Schappen' : 'Bibliotheek'}</h2>
                                     <div className="flex w-full sm:w-auto items-center gap-3">
@@ -526,7 +536,6 @@ function BoekenApp() {
                                 ) : (
                                     shelves.map(shelf => {
                                         const shelfBooks = filteredBooks.filter(b => b.shelfId === shelf.id);
-                                        // Verberg schap als de zoekopdracht geen resultaten heeft in dit schap
                                         if (searchQuery && shelfBooks.length === 0) return null;
                                         
                                         return (
@@ -598,7 +607,6 @@ function BoekenApp() {
                                                     </div>
                                                 </div>
                                                 
-                                                {/* Gedeelde gebruikers lijst */}
                                                 {shelf.sharedWith && shelf.sharedWith.length > 0 && (
                                                     <div className="mt-2 pt-3 border-t border-stone-200">
                                                         <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Gedeeld met:</p>
@@ -667,6 +675,52 @@ function BoekenApp() {
                 </main>
             </div>
 
+            {/* Boek Toevoegen Modal - COMPACTER & SMARTPHONE OPTIMIZED */}
+            {isBookModalOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
+                        <div className="flex justify-between items-center p-4 border-b border-stone-100 bg-stone-50 flex-shrink-0">
+                            <h3 className="text-xl font-black text-stone-800">Boek Toevoegen</h3>
+                            <button onClick={() => setIsBookModalOpen(false)} className="text-stone-400 hover:text-stone-700 bg-white p-1.5 rounded-full shadow-sm"><X size={20} /></button>
+                        </div>
+                        <div className="p-4 overflow-y-auto hide-scrollbar">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
+                                <div className="flex gap-2">
+                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
+                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm">Zoek</button>
+                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold"><Camera size={16} /></button>
+                                </div>
+                                {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
+                            </div>
+                            <form onSubmit={handleAddBook} className="space-y-3 relative">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="sm:col-span-2 relative">
+                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="De Hobbit" />
+                                        {titleSuggestions.length > 0 && (
+                                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden">
+                                                {titleSuggestions.map((s, idx) => (
+                                                    <div key={idx} onClick={() => selectTitleSuggestion(s)} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex justify-between items-center">
+                                                        <div><p className="font-bold text-sm text-stone-800 truncate">{s.title}</p><p className="text-xs text-stone-500">{s.author_name?.[0]}</p></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Auteur" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="300" /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Al Gelezen</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Plaats in Schap *</label><select required disabled={shelves.length === 0} value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold bg-white outline-none text-sm"><option value="" disabled>Kies een schap...</option>{shelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-3 border-t border-stone-100"><button type="button" onClick={() => setIsBookModalOpen(false)} className="px-4 py-2 font-bold hover:bg-stone-100 rounded-lg text-sm">Annuleren</button><button type="submit" disabled={shelves.length === 0} className="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-md text-sm">Opslaan</button></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -725,41 +779,6 @@ function BoekenApp() {
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
                         <div className="p-6 bg-stone-50 border-b border-stone-100"><h3 className="text-2xl font-black">Schap Bewerken</h3></div>
                         <form onSubmit={handleUpdateShelf} className="p-6"><input type="text" required value={editShelfData.name} onChange={e => setEditShelfData({...editShelfData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-4 mb-4 font-bold bg-stone-50" /><div className="flex justify-end gap-3"><button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div></form>
-                    </div>
-                </div>
-            )}
-
-            {/* Add Book Modal with Autocomplete & Manual Image */}
-            {isBookModalOpen && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden my-4">
-                        <div className="flex justify-between items-center p-5 border-b border-stone-100 bg-stone-50"><h3 className="text-2xl font-black text-stone-800">Boek Toevoegen</h3><button onClick={() => setIsBookModalOpen(false)} className="text-stone-400 hover:text-stone-700 bg-white p-2 rounded-full"><X size={20} /></button></div>
-                        <div className="p-5 sm:p-8">
-                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6"><label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2"><Search size={16}/> Snel toevoegen via ISBN</label><div className="flex gap-3"><input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-xl px-4 py-3 bg-white outline-none" /><button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-5 py-3 rounded-xl font-bold">Zoek</button><button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-5 py-3 rounded-xl font-bold"><Camera size={18} /></button></div>{errorMsg && <p className="text-red-600 font-medium text-sm mt-3">{errorMsg}</p>}</div>
-                            <form onSubmit={handleAddBook} className="space-y-4 relative">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2 relative">
-                                        <label className="block text-sm font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white outline-none" placeholder="De Hobbit" />
-                                        {titleSuggestions.length > 0 && (
-                                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden">
-                                                {titleSuggestions.map((s, idx) => (
-                                                    <div key={idx} onClick={() => selectTitleSuggestion(s)} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex justify-between items-center">
-                                                        <div><p className="font-bold text-sm text-stone-800 truncate">{s.title}</p><p className="text-xs text-stone-500">{s.author_name?.[0]}</p></div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white outline-none" placeholder="Auteur" /></div>
-                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white outline-none" placeholder="https://link-naar-plaatje.jpg" /></div>
-                                    <div><label className="block text-sm font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 outline-none" placeholder="300" /></div>
-                                    <div><label className="block text-sm font-bold text-stone-700 mb-1">Al Gelezen</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 outline-none" placeholder="0" /></div>
-                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Plaats in Schap *</label><select required disabled={shelves.length === 0} value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-white outline-none"><option value="" disabled>Kies een schap...</option>{shelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                                </div>
-                                <div className="flex justify-end gap-3 pt-4 border-t border-stone-100"><button type="button" onClick={() => setIsBookModalOpen(false)} className="px-6 py-3 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" disabled={shelves.length === 0} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
-                            </form>
-                        </div>
                     </div>
                 </div>
             )}
