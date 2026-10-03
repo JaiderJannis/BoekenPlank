@@ -129,7 +129,7 @@ function BoekenApp() {
         return () => { if (scannerRef.current) scannerRef.current.clear().catch(console.error); };
     }, [isScannerOpen]);
 
-    const handleLogin = async (e) => {
+const handleLogin = async (e) => {
         e.preventDefault(); 
         setLoading(true);
         try { 
