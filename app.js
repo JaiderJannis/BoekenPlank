@@ -36,10 +36,10 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
-    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
-    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
-    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
+    { version: "9.1", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
+    { version: "8.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
+    { version: "7.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
+    { version: "6.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
 ];
 
 function BoekenApp() {
