@@ -14,16 +14,13 @@
     <!-- HTML5 QRCode scanner voor de ISBN camera functie -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
+    <!-- Koppel je eigen CSS bestand -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-stone-100 text-stone-800 overflow-hidden h-screen flex flex-col">
     <div id="root" class="h-full w-full flex flex-col"></div>
 
-    <!-- === ✂️ BESTAND 3: APP.JS (of APP.JSX) ✂️ === -->
-    <!-- 
-      Als je dit opsplitst op je eigen server: 
-      1. Maak een bestand 'app.js' aan en plak alle JavaScript code erin (zonder de <script> tags).
-      2. Vervang deze hele script tag in je HTML door: <script src="app.js" type="text/babel" data-type="module"></script>
-    -->
-
+    <!-- Laad je eigen JS bestand in via Babel -->
+    <script src="app.js" type="text/babel" data-type="module"></script>
 </body>
 </html>
