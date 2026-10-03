@@ -4,7 +4,7 @@ import {
     BookOpen, Plus, Library, Flame, Settings, Share2, 
     CheckCircle2, X, Trash2, Edit3, Camera, Search, Book, 
     BarChart, AlertCircle, Check, Info, LogOut, Users, Shield, ArrowLeftRight,
-    Menu, History, Calendar
+    Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -28,12 +28,17 @@ const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken
 // Datum Hulpfuncties
 const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
 const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
-const getTodayString = () => new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+const getTodayString = () => new Date().toISOString().split('T')[0]; 
+const toDateString = (dateObj) => {
+    const d = new Date(dateObj);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "5.0.0", date: "Oktober 2026", changes: ["Volledige Maandkalender toegevoegd", "Leesactiviteit handmatig toevoegen op specifieke dagen", "Schappen delen met andere gebruikers (Kopieer-functie)"] },
     { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] },
-    { version: "3.0.0", date: "Oktober 2026", changes: ["Mobielvriendelijk (Responsive) met inklapbaar menu toegevoegd", "Schappen (categorieën) kunnen nu achteraf bewerkt worden", "Versiegeschiedenis paneel toegevoegd", "Copyright by Jaider toegevoegd in menu"] },
+    { version: "3.0.0", date: "Oktober 2026", changes: ["Mobielvriendelijk (Responsive) met inklapbaar menu toegevoegd", "Schappen (categorieën) kunnen nu achteraf bewerkt worden", "Versiegeschiedenis paneel toegevoegd"] },
     { version: "2.1.0", date: "September 2026", changes: ["Wissel-account (impersonation) toegevoegd voor beheerders", "Nieuw Pro-design met Tailwind CSS", "Camera barcode scanner voor ISBN geïntegreerd"] }
 ];
 
@@ -56,7 +61,7 @@ function BoekenApp() {
     const [books, setBooks] = useState([]);
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
-    const [readingLogs, setReadingLogs] = useState([]); // Nieuwe kalender logs
+    const [readingLogs, setReadingLogs] = useState([]); 
 
     // UI State
     const [activeTab, setActiveTab] = useState('schappen');
@@ -67,6 +72,11 @@ function BoekenApp() {
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
+
+    // Nieuwe States voor Kalender & Delen
+    const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
+    const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
+    const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
 
     // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
@@ -164,7 +174,6 @@ function BoekenApp() {
         finally { setIsFetchingIsbn(false); }
     };
 
-    // Live Title Suggestion zoeken via OpenLibrary
     const handleTitleChange = async (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
@@ -202,6 +211,39 @@ function BoekenApp() {
         setEditShelfData({ isOpen: false, id: '', name: '', description: '' });
     };
 
+    const handleShareShelfSubmit = async (e) => {
+        e.preventDefault();
+        setShareShelfData(p => ({...p, loading: true, msg: ''}));
+        try {
+            const usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+            let targetUid = null;
+            usersSnap.forEach(d => { if (d.data().email.toLowerCase() === shareShelfData.email.toLowerCase()) targetUid = d.id; });
+
+            if (!targetUid) return setShareShelfData(p => ({...p, loading: false, msg: 'Gebruiker niet gevonden in het systeem.'}));
+            if (targetUid === activeUserId) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
+
+            const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
+            const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'shelves'), {
+                name: `${shelfToCopy.name} (Gedeeld)`,
+                description: `Gedeeld door ${userData.name}. ${shelfToCopy.description || ''}`,
+                createdAt: new Date().toISOString()
+            });
+
+            const booksToCopy = books.filter(b => b.shelfId === shareShelfData.shelfId);
+            for (const b of booksToCopy) {
+                await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'books'), {
+                    ...b, shelfId: newShelfRef.id, addedAt: new Date().toISOString()
+                });
+            }
+
+            setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
+            alert(`Schap "${shelfToCopy.name}" is succesvol gekopieerd naar de gebruiker!`);
+        } catch (err) {
+            console.error(err);
+            setShareShelfData(p => ({...p, loading: false, msg: 'Er is een fout opgetreden bij het delen.'}));
+        }
+    };
+
     const handleAddBook = async (e) => {
         e.preventDefault(); if (!activeUserId || !newBook.title || !newBook.shelfId) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), { ...newBook, author: newBook.author || 'Onbekend', totalPages: parseInt(newBook.totalPages) || 0, pagesRead: parseInt(newBook.pagesRead) || 0, addedAt: new Date().toISOString() });
@@ -216,18 +258,26 @@ function BoekenApp() {
         
         const orig = books.find(b => b.id === selectedBook.id);
         if (newPages > (orig?.pagesRead || 0)) {
-            // Logboek toevoegen voor de kalender
             const todayStr = getTodayString();
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), {
-                date: todayStr,
-                bookId: selectedBook.id,
-                title: selectedBook.title,
-                cover: selectedBook.cover || null
+                date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null
             }, { merge: true });
-            
             await handleLogReading(true);
         }
         setSelectedBook(null);
+    };
+
+    const handleRetroactiveLog = async (e) => {
+        e.preventDefault();
+        if (!activeUserId || !calendarLogData.bookId) return;
+        const book = books.find(b => b.id === calendarLogData.bookId);
+        if (!book) return;
+        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), {
+            date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null
+        }, { merge: true });
+        
+        if(calendarLogData.dateStr === getTodayString()) handleLogReading(true);
+        setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' });
     };
 
     const handleDeleteBook = async () => {
@@ -261,18 +311,45 @@ function BoekenApp() {
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
     const hasReadToday = isToday(stats.lastReadDate);
+    const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
 
-    // Groepeer logs per datum voor de kalender
-    const logsByDate = readingLogs.reduce((acc, log) => {
-        if (!acc[log.date]) acc[log.date] = [];
-        acc[log.date].push(log);
-        return acc;
-    }, {});
+    // Kalender opbouw variabelen
+    const calYear = currentMonthDate.getFullYear();
+    const calMonth = currentMonthDate.getMonth();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    let firstDayIndex = new Date(calYear, calMonth, 1).getDay() - 1;
+    if (firstDayIndex === -1) firstDayIndex = 6; // Fix voor Zondag = 0
+    const monthNames = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
+    
+    const renderCalendarDays = () => {
+        let days = [];
+        for (let i = 0; i < firstDayIndex; i++) {
+            days.push(<div key={`empty-${i}`} className="h-24 sm:h-32 bg-stone-50 rounded-xl border border-stone-100 opacity-50"></div>);
+        }
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = toDateString(new Date(calYear, calMonth, day));
+            const dayLogs = logsByDate[dateStr] || [];
+            const isCurrentDay = dateStr === getTodayString();
+
+            days.push(
+                <div key={day} onClick={() => setCalendarLogData({ isOpen: true, dateStr: dateStr, bookId: '' })} className={`h-24 sm:h-32 p-2 rounded-xl border relative cursor-pointer hover:bg-amber-50 transition-colors overflow-hidden ${isCurrentDay ? 'border-amber-500 bg-amber-50/50 shadow-sm' : 'border-stone-200 bg-white'}`}>
+                    <span className={`text-sm font-bold ${isCurrentDay ? 'text-amber-600' : 'text-stone-500'}`}>{day}</span>
+                    <div className="absolute top-6 left-1 right-1 bottom-1 flex gap-1 overflow-x-auto hide-scrollbar items-end">
+                        {dayLogs.map((log, idx) => (
+                            <div key={idx} className="w-8 h-12 sm:w-10 sm:h-14 flex-shrink-0 rounded shadow-sm overflow-hidden bg-stone-200 border border-stone-300">
+                                {log.cover ? <img src={log.cover} className="w-full h-full object-cover" title={log.title}/> : <Book size={16} className="m-auto text-stone-400 mt-3"/>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        return days;
+    };
 
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
-            {/* Top Banners - Gevixeerd bovenaan */}
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {impersonatedUser && (
                     <div className="bg-red-600 text-white px-4 py-2 flex justify-between items-center shadow-md animate-pulse">
@@ -280,8 +357,6 @@ function BoekenApp() {
                         <button onClick={() => setImpersonatedUser(null)} className="bg-black/30 hover:bg-black/50 px-3 py-1 rounded-lg text-xs font-bold transition-colors">Terug</button>
                     </div>
                 )}
-                
-                {/* Mobile Top Bar */}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
                     <div className="flex items-center gap-2 font-bold text-xl"><Library size={24} className="text-amber-500" /> Boeken<span className="text-amber-500">Plank</span></div>
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
@@ -289,28 +364,19 @@ function BoekenApp() {
             </div>
 
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-                
-                {/* Mobile Overlay */}
                 {isMobileMenuOpen && (
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
-                {/* Sidebar */}
                 <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl"><Library className="text-white" size={28} /></div>
-                                <h1 className="text-2xl font-bold">Boeken<span className="text-amber-500">Plank</span></h1>
-                            </div>
+                            <div className="flex items-center gap-3"><div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl"><Library className="text-white" size={28} /></div><h1 className="text-2xl font-bold">Boeken<span className="text-amber-500">Plank</span></h1></div>
                             <button className="md:hidden text-stone-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
                         </div>
                         <div className="flex items-center gap-3 mb-4 bg-stone-800/50 p-3 rounded-2xl border border-stone-700">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold text-lg border-2 border-stone-700">{userData.name.charAt(0).toUpperCase()}</div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm truncate text-white">{userData.name}</p>
-                                <p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p>
-                            </div>
+                            <div className="flex-1 min-w-0"><p className="font-bold text-sm truncate text-white">{userData.name}</p><p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p></div>
                             <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors"><LogOut size={16}/></button>
                         </div>
                     </div>
@@ -320,7 +386,7 @@ function BoekenApp() {
                             <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p>
                             <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
                             <button onClick={() => switchTab('alle')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookOpen size={20} /> Alle Boeken</button>
-                            <button onClick={() => switchTab('kalender')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'kalender' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Calendar size={20} /> Kalender</button>
+                            <button onClick={() => switchTab('kalender')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'kalender' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><CalendarDays size={20} /> Kalender</button>
                             
                             <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p>
                             <button onClick={() => switchTab('beheer')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Settings size={20} /> Schappen Beheren</button>
@@ -334,13 +400,11 @@ function BoekenApp() {
                     </div>
                 </nav>
 
-                {/* Main Content Area */}
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
                         {(activeTab === 'schappen' || activeTab === 'alle') && (
                             <div className="mb-8">
-                                {/* Lees Streak Widget (Nu prominent zichtbaar!) */}
                                 <div className="bg-white rounded-3xl p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col md:flex-row items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
                                         <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl"><Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={32} /></div>
@@ -353,7 +417,6 @@ function BoekenApp() {
                                         {hasReadToday ? <><CheckCircle2 size={20}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
                                     </button>
                                 </div>
-
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                     <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">{activeTab === 'schappen' ? 'Mijn Schappen' : 'Bibliotheek'}</h2>
                                     <button onClick={() => setIsBookModalOpen(true)} className="flex w-full sm:w-auto justify-center items-center gap-2 bg-stone-900 hover:bg-stone-800 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg"><Plus size={20} /> Boek Toevoegen</button>
@@ -389,29 +452,31 @@ function BoekenApp() {
                         )}
 
                         {activeTab === 'kalender' && (
-                            <div className="space-y-8">
-                                <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight flex items-center gap-3"><Calendar className="text-amber-500" size={36}/> Lees Kalender</h2>
-                                <p className="text-stone-600 font-medium">Een overzicht van welke boeken je op welke dag hebt gelezen.</p>
-                                <div className="space-y-6">
-                                    {Object.keys(logsByDate).sort((a,b) => new Date(b) - new Date(a)).map(dateStr => (
-                                        <div key={dateStr} className="bg-white rounded-3xl p-6 shadow-sm border border-stone-200">
-                                            <h3 className="font-bold text-lg text-stone-800 mb-4">{new Date(dateStr).toLocaleDateString('nl-NL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-                                            <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-                                                {logsByDate[dateStr].map((log, i) => (
-                                                    <div key={i} className="flex-shrink-0 w-24">
-                                                        {log.cover ? <img src={log.cover} alt="Cover" className="w-full h-36 object-cover rounded-xl shadow-md border border-stone-200" /> : <div className="w-full h-36 bg-stone-200 rounded-xl flex items-center justify-center border border-stone-300"><Book className="text-stone-400" size={24}/></div>}
-                                                        <p className="text-xs font-bold mt-2 truncate">{log.title}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <div className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-stone-200/60">
+                                    <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-3"><CalendarDays className="text-amber-500" size={32}/> Kalender</h2>
+                                    <div className="flex items-center gap-4">
+                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth - 1, 1))} className="p-2 hover:bg-stone-100 rounded-full transition"><ChevronLeft size={24}/></button>
+                                        <h3 className="text-xl font-bold text-stone-800 w-40 text-center">{monthNames[calMonth]} {calYear}</h3>
+                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth + 1, 1))} className="p-2 hover:bg-stone-100 rounded-full transition"><ChevronRight size={24}/></button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-stone-200/60">
+                                    <div className="grid grid-cols-7 gap-2 mb-2">
+                                        {['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].map(d => (
+                                            <div key={d} className="text-center font-bold text-stone-400 text-xs uppercase tracking-wider">{d}</div>
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                                        {renderCalendarDays()}
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'beheer' && (
-                            <div className="max-w-3xl mx-auto space-y-6">
+                            <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
                                     <h2 className="text-3xl font-black text-stone-800">Beheer Schappen</h2>
                                     <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg"><Plus size={20} /> Nieuw Schap</button>
@@ -419,11 +484,12 @@ function BoekenApp() {
                                 <div className="bg-white rounded-3xl p-5 shadow-md">
                                     <div className="space-y-4">
                                         {shelves.map(shelf => (
-                                            <div key={shelf.id} className="flex justify-between items-center p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
+                                            <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
                                                 <div><p className="font-bold text-lg">{shelf.name}</p></div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex items-center gap-1 bg-white border border-stone-200 px-3 py-2 rounded-xl text-sm font-bold"><Edit3 size={16}/> Bewerk</button>
-                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="text-red-500 p-2"><Trash2 size={20}/></button>
+                                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel</button>
+                                                    <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex-1 sm:flex-none flex items-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
+                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                 </div>
                                             </div>
                                         ))}
@@ -476,6 +542,58 @@ function BoekenApp() {
                 </main>
             </div>
 
+            {/* Retroactive Calendar Log Modal */}
+            {calendarLogData.isOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100">
+                            <h3 className="text-xl font-black flex items-center gap-2"><CalendarDays size={20} className="text-amber-500"/> Logboek toevoegen</h3>
+                            <p className="text-sm text-stone-500 mt-1">Gelezen op: {calendarLogData.dateStr}</p>
+                        </div>
+                        <form onSubmit={handleRetroactiveLog} className="p-6">
+                            {books.length === 0 ? <p className="text-red-500 mb-4 font-bold">Je hebt nog geen boeken in je bibliotheek.</p> : (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-bold text-stone-700 mb-2">Welk boek heb je gelezen?</label>
+                                    <select required value={calendarLogData.bookId} onChange={e => setCalendarLogData({...calendarLogData, bookId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
+                                        <option value="" disabled>Selecteer een boek...</option>
+                                        {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={() => setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" disabled={books.length === 0} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Log Opslaan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Share Shelf Modal */}
+            {shareShelfData.isOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100">
+                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Delen</h3>
+                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" naar een andere gebruiker.</p>
+                        </div>
+                        <form onSubmit={handleShareShelfSubmit} className="p-6">
+                            <div className="mb-5">
+                                <label className="block text-sm font-bold text-stone-700 mb-2">E-mailadres ontvanger</label>
+                                <input type="email" required value={shareShelfData.email} onChange={e => setShareShelfData({...shareShelfData, email: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 focus:bg-white outline-none focus:border-amber-500" placeholder="bijv. naam@email.com" />
+                            </div>
+                            {shareShelfData.msg && <p className="text-red-500 font-bold mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">{shareShelfData.msg}</p>}
+                            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
+                                <button type="button" onClick={() => setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" disabled={shareShelfData.loading} className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 justify-center">
+                                    {shareShelfData.loading ? 'Bezig met delen...' : 'Deel Schap'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Shelf Modal */}
             {editShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -498,7 +616,6 @@ function BoekenApp() {
                                     <div className="md:col-span-2 relative">
                                         <label className="block text-sm font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white outline-none" placeholder="De Hobbit" />
-                                        {/* Autocomplete Dropdown */}
                                         {titleSuggestions.length > 0 && (
                                             <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden">
                                                 {titleSuggestions.map((s, idx) => (
