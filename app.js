@@ -4,7 +4,7 @@ import {
     BookOpen, Plus, Library, Flame, Settings, Share2, 
     CheckCircle2, X, Trash2, Edit3, Camera, Search, Book, 
     BarChart, AlertCircle, Check, Info, LogOut, Users, Shield, ArrowLeftRight,
-    Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays
+    Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -36,10 +36,10 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken toegevoegd", "Deel-rechten inzien en intrekken (Stop Delen) toegevoegd", "Visueel weekoverzicht (vlammetjes) toegevoegd aan de streak", "Covers verkleind voor meer overzicht", "Vlammetjes toegevoegd aan kalenderweergave"] },
     { version: "5.0.0", date: "Oktober 2026", changes: ["Volledige Maandkalender toegevoegd", "Leesactiviteit handmatig toevoegen op specifieke dagen", "Schappen delen met andere gebruikers (Kopieer-functie)"] },
     { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] },
-    { version: "3.0.0", date: "Oktober 2026", changes: ["Mobielvriendelijk (Responsive) met inklapbaar menu toegevoegd", "Schappen (categorieën) kunnen nu achteraf bewerkt worden", "Versiegeschiedenis paneel toegevoegd"] },
-    { version: "2.1.0", date: "September 2026", changes: ["Wissel-account (impersonation) toegevoegd voor beheerders", "Nieuw Pro-design met Tailwind CSS", "Camera barcode scanner voor ISBN geïntegreerd"] }
+    { version: "3.0.0", date: "Oktober 2026", changes: ["Mobielvriendelijk (Responsive) met inklapbaar menu toegevoegd", "Schappen (categorieën) kunnen nu achteraf bewerkt worden", "Versiegeschiedenis paneel toegevoegd"] }
 ];
 
 function BoekenApp() {
@@ -69,6 +69,8 @@ function BoekenApp() {
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [selectedBook, setSelectedBook] = useState(null); 
+    const [isEditingBook, setIsEditingBook] = useState(false);
+    const [editBookData, setEditBookData] = useState(null);
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
@@ -223,6 +225,12 @@ function BoekenApp() {
             if (targetUid === activeUserId) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
 
             const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
+            
+            // Check if already shared with this user
+            if (shelfToCopy.sharedWith && shelfToCopy.sharedWith.some(s => s.uid === targetUid)) {
+                return setShareShelfData(p => ({...p, loading: false, msg: 'Dit schap is al gedeeld met deze gebruiker.'}));
+            }
+
             const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'shelves'), {
                 name: `${shelfToCopy.name} (Gedeeld)`,
                 description: `Gedeeld door ${userData.name}. ${shelfToCopy.description || ''}`,
@@ -236,18 +244,60 @@ function BoekenApp() {
                 });
             }
 
+            // Update owner's shelf array
+            const ownerShelfRef = doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId);
+            const currentShared = shelfToCopy.sharedWith || [];
+            await updateDoc(ownerShelfRef, {
+                sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }]
+            });
+
             setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
-            alert(`Schap "${shelfToCopy.name}" is succesvol gekopieerd naar de gebruiker!`);
         } catch (err) {
             console.error(err);
             setShareShelfData(p => ({...p, loading: false, msg: 'Er is een fout opgetreden bij het delen.'}));
         }
     };
 
+    const handleRevokeShare = async (shelfId, shareObj) => {
+        requestConfirm(`Toegang intrekken voor ${shareObj.email}? Dit verwijdert het schap en alle daarin gedeelde boeken bij deze gebruiker.`, async () => {
+            try {
+                // Delete target shelf
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'shelves', shareObj.targetShelfId));
+                // Delete books inside target shelf
+                const targetBooksSnap = await getDocs(collection(db, 'artifacts', appId, 'users', shareObj.uid, 'books'));
+                targetBooksSnap.forEach(async (b) => {
+                    if (b.data().shelfId === shareObj.targetShelfId) {
+                        await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'books', b.id));
+                    }
+                });
+                // Remove from owner's sharedWith array
+                const shelf = shelves.find(s => s.id === shelfId);
+                const newSharedWith = (shelf.sharedWith || []).filter(s => s.uid !== shareObj.uid);
+                await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId), { sharedWith: newSharedWith });
+            } catch (err) {
+                console.error("Fout bij intrekken:", err);
+            }
+        });
+    };
+
     const handleAddBook = async (e) => {
         e.preventDefault(); if (!activeUserId || !newBook.title || !newBook.shelfId) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), { ...newBook, author: newBook.author || 'Onbekend', totalPages: parseInt(newBook.totalPages) || 0, pagesRead: parseInt(newBook.pagesRead) || 0, addedAt: new Date().toISOString() });
         setNewBook(initialBookState); setIsBookModalOpen(false); setTitleSuggestions([]);
+    };
+
+    const handleUpdateBookDetails = async (e) => {
+        e.preventDefault();
+        if (!activeUserId || !editBookData.id) return;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', editBookData.id), {
+            title: editBookData.title,
+            author: editBookData.author,
+            cover: editBookData.cover,
+            totalPages: parseInt(editBookData.totalPages) || 0,
+            shelfId: editBookData.shelfId
+        });
+        setSelectedBook(p => ({...p, ...editBookData}));
+        setIsEditingBook(false);
     };
 
     const handleUpdateProgress = async (e) => {
@@ -318,7 +368,7 @@ function BoekenApp() {
     const calMonth = currentMonthDate.getMonth();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
     let firstDayIndex = new Date(calYear, calMonth, 1).getDay() - 1;
-    if (firstDayIndex === -1) firstDayIndex = 6; // Fix voor Zondag = 0
+    if (firstDayIndex === -1) firstDayIndex = 6;
     const monthNames = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
     
     const renderCalendarDays = () => {
@@ -330,11 +380,15 @@ function BoekenApp() {
             const dateStr = toDateString(new Date(calYear, calMonth, day));
             const dayLogs = logsByDate[dateStr] || [];
             const isCurrentDay = dateStr === getTodayString();
+            const hasRead = dayLogs.length > 0;
 
             days.push(
                 <div key={day} onClick={() => setCalendarLogData({ isOpen: true, dateStr: dateStr, bookId: '' })} className={`h-24 sm:h-32 p-2 rounded-xl border relative cursor-pointer hover:bg-amber-50 transition-colors overflow-hidden ${isCurrentDay ? 'border-amber-500 bg-amber-50/50 shadow-sm' : 'border-stone-200 bg-white'}`}>
-                    <span className={`text-sm font-bold ${isCurrentDay ? 'text-amber-600' : 'text-stone-500'}`}>{day}</span>
-                    <div className="absolute top-6 left-1 right-1 bottom-1 flex gap-1 overflow-x-auto hide-scrollbar items-end">
+                    <div className="flex justify-between items-start">
+                        <span className={`text-sm font-bold ${isCurrentDay ? 'text-amber-600' : 'text-stone-500'}`}>{day}</span>
+                        {hasRead && <Flame size={14} className="text-orange-500" />}
+                    </div>
+                    <div className="absolute top-7 left-1 right-1 bottom-1 flex gap-1 overflow-x-auto hide-scrollbar items-end">
                         {dayLogs.map((log, idx) => (
                             <div key={idx} className="w-8 h-12 sm:w-10 sm:h-14 flex-shrink-0 rounded shadow-sm overflow-hidden bg-stone-200 border border-stone-300">
                                 {log.cover ? <img src={log.cover} className="w-full h-full object-cover" title={log.title}/> : <Book size={16} className="m-auto text-stone-400 mt-3"/>}
@@ -345,6 +399,27 @@ function BoekenApp() {
             );
         }
         return days;
+    };
+
+    // Render Weekly Streak
+    const renderWeeklyStreak = () => {
+        const days = [];
+        for(let i=6; i>=0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dStr = toDateString(d);
+            const hasRead = logsByDate[dStr] ? true : false;
+            const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
+            days.push(
+                <div key={i} className="flex flex-col items-center gap-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
+                        {hasRead ? <Flame size={16} className="text-orange-500" /> : <span className="text-xs text-stone-400 font-bold">{dayName.charAt(0)}</span>}
+                    </div>
+                    <span className="text-[10px] text-stone-500 font-bold uppercase">{dayName}</span>
+                </div>
+            );
+        }
+        return <div className="flex gap-2 mt-4 pt-4 border-t border-stone-100 w-full justify-between">{days}</div>;
     };
 
     return (
@@ -405,16 +480,19 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle') && (
                             <div className="mb-8">
-                                <div className="bg-white rounded-3xl p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl"><Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={32} /></div>
-                                        <div>
-                                            <p className="text-sm text-stone-500 font-bold uppercase tracking-wider">Huidige Lees Streak</p>
-                                            <p className="text-3xl font-black text-stone-800">{stats.currentStreak} <span className="text-lg text-stone-400 font-medium">dagen</span></p>
+                                <div className="bg-white rounded-3xl p-5 sm:p-6 mb-8 shadow-sm border border-stone-200/60 flex flex-col md:flex-row items-center justify-between gap-6">
+                                    <div className="flex flex-col flex-1 w-full md:w-auto">
+                                        <div className="flex items-center gap-4 mb-2">
+                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl"><Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={32} /></div>
+                                            <div>
+                                                <p className="text-sm text-stone-500 font-bold uppercase tracking-wider">Huidige Lees Streak</p>
+                                                <p className="text-3xl font-black text-stone-800">{stats.currentStreak} <span className="text-lg text-stone-400 font-medium">dagen</span></p>
+                                            </div>
                                         </div>
+                                        {renderWeeklyStreak()}
                                     </div>
-                                    <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full md:w-auto px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md ${hasReadToday ? 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                        {hasReadToday ? <><CheckCircle2 size={20}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
+                                    <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full md:w-1/3 px-6 py-5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-lg ${hasReadToday ? 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                        {hasReadToday ? <><CheckCircle2 size={24}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
                                     </button>
                                 </div>
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -437,7 +515,8 @@ function BoekenApp() {
                                                 <div className="mb-6 border-b border-stone-100 pb-4">
                                                     <h3 className="text-2xl font-black flex items-center gap-3">{shelf.name} <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
                                                 </div>
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
+                                                {/* Updated Grid for Smaller Covers */}
+                                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
                                             </div>
                                         );
                                     })
@@ -446,7 +525,7 @@ function BoekenApp() {
                         )}
 
                         {activeTab === 'alle' && (
-                            <div className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                            <div className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
                                 <BookList books={books} onSelect={setSelectedBook} />
                             </div>
                         )}
@@ -482,15 +561,32 @@ function BoekenApp() {
                                     <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg"><Plus size={20} /> Nieuw Schap</button>
                                 </div>
                                 <div className="bg-white rounded-3xl p-5 shadow-md">
-                                    <div className="space-y-4">
+                                    <div className="space-y-6">
                                         {shelves.map(shelf => (
-                                            <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
-                                                <div><p className="font-bold text-lg">{shelf.name}</p></div>
-                                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel</button>
-                                                    <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex-1 sm:flex-none flex items-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
-                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
+                                            <div key={shelf.id} className="flex flex-col p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                                    <div><p className="font-bold text-lg">{shelf.name}</p></div>
+                                                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                        <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel</button>
+                                                        <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
+                                                        <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
+                                                    </div>
                                                 </div>
+                                                
+                                                {/* Gedeelde gebruikers lijst */}
+                                                {shelf.sharedWith && shelf.sharedWith.length > 0 && (
+                                                    <div className="mt-2 pt-3 border-t border-stone-200">
+                                                        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Gedeeld met:</p>
+                                                        <div className="space-y-2">
+                                                            {shelf.sharedWith.map((share, idx) => (
+                                                                <div key={idx} className="flex justify-between items-center bg-white p-2 px-3 rounded-lg border border-stone-200">
+                                                                    <span className="text-sm font-medium text-stone-700">{share.email}</span>
+                                                                    <button onClick={() => handleRevokeShare(shelf.id, share)} className="text-xs flex items-center gap-1 text-red-500 hover:bg-red-50 px-2 py-1 rounded-md font-bold transition-colors"><UserX size={14}/> Stop Delen</button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -586,7 +682,7 @@ function BoekenApp() {
                             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
                                 <button type="button" onClick={() => setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
                                 <button type="submit" disabled={shareShelfData.loading} className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 justify-center">
-                                    {shareShelfData.loading ? 'Bezig met delen...' : 'Deel Schap'}
+                                    {shareShelfData.loading ? 'Bezig...' : 'Deel Schap'}
                                 </button>
                             </div>
                         </form>
@@ -646,7 +742,57 @@ function BoekenApp() {
 
             {/* View/Edit Book Modal */}
             {selectedBook && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]"><div className="md:w-5/12 bg-stone-100 relative h-48 md:h-auto border-r border-stone-200 flex-shrink-0">{selectedBook.cover ? (<img src={selectedBook.cover} alt={selectedBook.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center bg-stone-200 text-stone-400 p-6"><Book size={64} /></div>)}<button onClick={() => setSelectedBook(null)} className="md:hidden absolute top-4 right-4 text-white bg-black/40 p-2 rounded-full"><X size={20} /></button></div><div className="p-6 md:p-8 md:w-7/12 flex flex-col bg-white overflow-y-auto"><div className="flex justify-between items-start mb-4"><div><h3 className="text-2xl font-black mb-1">{selectedBook.title}</h3><p className="text-lg text-stone-500 font-medium">{selectedBook.author}</p></div><button onClick={() => setSelectedBook(null)} className="hidden md:block bg-stone-100 p-2 rounded-full"><X size={24} /></button></div><form onSubmit={handleUpdateProgress} className="mt-auto bg-stone-50 p-5 rounded-2xl border border-stone-200"><label className="block text-sm font-bold text-stone-700 mb-3">Leesvoortgang updaten</label><div className="flex items-center gap-4 mb-4"><input type="number" min="0" max={selectedBook.totalPages || 9999} required value={selectedBook.pagesRead} onChange={e => setSelectedBook({...selectedBook, pagesRead: e.target.value})} className="w-24 text-2xl font-black border-2 rounded-xl px-3 py-2 outline-none text-center bg-white" /><span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} pag.</span></div><div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200"><button type="button" onClick={handleDeleteBook} className="text-red-500 p-3 rounded-xl hover:bg-red-50"><Trash2 size={24} /></button><button type="submit" className="flex-1 bg-stone-900 text-white font-black py-3 rounded-xl shadow-lg">Opslaan (en log naar kalender)</button></div></form></div></div></div>
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]">
+                        <div className="md:w-5/12 bg-stone-100 relative h-48 md:h-auto border-r border-stone-200 flex-shrink-0">
+                            {selectedBook.cover ? (<img src={selectedBook.cover} alt={selectedBook.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center bg-stone-200 text-stone-400 p-6"><Book size={64} /></div>)}
+                            <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="md:hidden absolute top-4 right-4 text-white bg-black/40 p-2 rounded-full"><X size={20} /></button>
+                        </div>
+                        <div className="p-6 md:p-8 md:w-7/12 flex flex-col bg-white overflow-y-auto">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="text-2xl font-black mb-1">{selectedBook.title}</h3>
+                                    <p className="text-lg text-stone-500 font-medium">{selectedBook.author}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {!isEditingBook && (
+                                        <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="hidden md:flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors"><Edit3 size={16}/> Bewerk</button>
+                                    )}
+                                    <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="hidden md:block bg-stone-100 p-2 rounded-full"><X size={24} /></button>
+                                </div>
+                            </div>
+                            
+                            {isEditingBook && editBookData ? (
+                                <form onSubmit={handleUpdateBookDetails} className="mt-4 bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-amber-900">Boekgegevens wijzigen</h4>
+                                        <button type="button" onClick={() => setIsEditingBook(false)} className="text-amber-700 hover:text-amber-900"><X size={20}/></button>
+                                    </div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Titel</label><input type="text" required value={editBookData.title} onChange={e => setEditBookData({...editBookData, title: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={editBookData.author} onChange={e => setEditBookData({...editBookData, author: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL</label><input type="text" value={editBookData.cover || ''} onChange={e => setEditBookData({...editBookData, cover: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Plaats in Schap</label><select required value={editBookData.shelfId} onChange={e => setEditBookData({...editBookData, shelfId: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none font-bold"><option value="" disabled>Kies een schap...</option>{shelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                    </div>
+                                    <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-2 shadow-md"><Save size={18}/> Wijzigingen Opslaan</button>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleUpdateProgress} className="mt-auto bg-stone-50 p-5 rounded-2xl border border-stone-200">
+                                    <label className="block text-sm font-bold text-stone-700 mb-3">Leesvoortgang updaten</label>
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <input type="number" min="0" max={selectedBook.totalPages || 9999} required value={selectedBook.pagesRead} onChange={e => setSelectedBook({...selectedBook, pagesRead: e.target.value})} className="w-24 text-2xl font-black border-2 rounded-xl px-3 py-2 outline-none text-center bg-white" />
+                                        <span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} pag.</span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
+                                        <button type="button" onClick={handleDeleteBook} className="text-red-500 p-3 rounded-xl hover:bg-red-50"><Trash2 size={24} /></button>
+                                        <button type="submit" className="flex-1 bg-stone-900 text-white font-black py-3 rounded-xl shadow-lg">Opslaan (en log naar kalender)</button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Add Shelf Modal */}
@@ -671,12 +817,12 @@ function BookList({ books, onSelect }) {
                 return (
                     <div key={book.id} className="group relative flex flex-col cursor-pointer transition-all hover:-translate-y-2" onClick={() => onSelect(book)}>
                         <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200/50">
-                            {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-3 text-center"><Book className="text-stone-300 mb-2" size={36} /></div>)}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-2 pt-8 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[10px] sm:text-xs text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} pag.</p></div>
-                            {isFinished && (<div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full"><Check size={14} strokeWidth={4} /></div>)}
+                            {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-2 text-center"><Book className="text-stone-300 mb-1" size={24} /></div>)}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} p.</p></div>
+                            {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full"><Check size={12} strokeWidth={4} /></div>)}
                         </div>
-                        <div className="w-full bg-stone-200/80 rounded-full h-1.5 mb-1.5"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>
-                        <h4 className="font-bold text-xs sm:text-sm text-stone-800 leading-tight line-clamp-2">{book.title}</h4>
+                        <div className="w-full bg-stone-200/80 rounded-full h-1 mb-1"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>
+                        <h4 className="font-bold text-[10px] sm:text-xs text-stone-800 leading-tight line-clamp-2">{book.title}</h4>
                     </div>
                 );
             })}
