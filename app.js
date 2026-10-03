@@ -36,7 +36,7 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "9.0.0", date: "Oktober 2026", changes: ["API overgezet naar Google Books voor betere NL/BE resultaten", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt (geen overlap meer)"] },
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt (geen overlap meer)"] },
     { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
     { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
@@ -526,7 +526,7 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-2xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm text-stone-400 font-medium">dagen</span></p>
+                                                    <p className="text-3xl md:text-5xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm md:text-lg text-stone-400 font-medium">dagen</span></p>
                                                 </div>
                                             </div>
                                         </div>
@@ -745,16 +745,38 @@ function BoekenApp() {
                                 </div>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
                             </div>
-                            <form onSubmit={handleAddBook} className="space-y-3 relative">
+                            <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="sm:col-span-2 relative">
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="De Hobbit" />
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none text-sm transition-colors" placeholder="Bijv. De Hobbit" />
+                                        
+                                        {/* Loading state voor zoeken */}
+                                        {isSearchingTitle && (
+                                            <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
+                                                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                                                <p className="text-xs font-bold text-amber-700">Boeken zoeken...</p>
+                                            </div>
+                                        )}
+
+                                        {/* Suggesties Kadertje */}
                                         {titleSuggestions.length > 0 && (
-                                            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden">
+                                            <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
+                                                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p>
+                                                </div>
                                                 {titleSuggestions.map((item, idx) => (
-                                                    <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex justify-between items-center">
-                                                        <div><p className="font-bold text-sm text-stone-800 truncate">{item.volumeInfo?.title}</p><p className="text-xs text-stone-500">{item.volumeInfo?.authors?.[0]}</p></div>
+                                                    <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-3 transition-colors">
+                                                        {item.volumeInfo?.imageLinks?.smallThumbnail ? (
+                                                            <img src={item.volumeInfo.imageLinks.smallThumbnail.replace('http:', 'https:')} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />
+                                                        ) : (
+                                                            <div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>
+                                                        )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold text-sm text-stone-800 truncate">{item.volumeInfo?.title}</p>
+                                                            <p className="text-xs text-stone-500 truncate">{item.volumeInfo?.authors?.join(', ') || 'Onbekende auteur'}</p>
+                                                        </div>
+                                                        <Plus size={16} className="text-amber-500 flex-shrink-0 opacity-50" />
                                                     </div>
                                                 ))}
                                             </div>
