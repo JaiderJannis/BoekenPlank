@@ -12,8 +12,14 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
-        const firebaseConfigStr = typeof window.__firebase_config !== 'undefined' ? window.__firebase_config : '{}';
-        const firebaseConfig = firebaseConfigStr ? JSON.parse(firebaseConfigStr) : {};
+        const firebaseConfig = {
+            apiKey: "AIzaSyCVlFFp4QiianYl27RSGKjkA0HDzUyu1Q4",
+            authDomain: "boekenplank-5a410.firebaseapp.com",
+            projectId: "boekenplank-5a410",
+            storageBucket: "boekenplank-5a410.firebasestorage.app",
+            messagingSenderId: "608659427714",
+            appId: "1:608659427714:web:7f002b18277117489c3f9b"
+        };
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
