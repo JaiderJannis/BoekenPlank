@@ -25,6 +25,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
+// Datum Hulpfuncties
 const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
 const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
 const getTodayString = () => new Date().toISOString().split('T')[0]; 
@@ -33,14 +34,16 @@ const toDateString = (dateObj) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// Changelog Data
 const CHANGELOG = [
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Debounce (anti-spam) beveiliging ingebouwd voor API zoekopdrachten", "Google Books én OpenLibrary succesvol en veilig gecombineerd", "Dagen in de leesstreak flink vergroot op desktop weergave", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
-    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones", "Zoekfunctie toegevoegd voor boeken"] },
-    { version: "7.0.0", date: "Oktober 2026", changes: ["Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
-    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
+    { version: "9.2.0", date: "Oktober 2026", changes: ["Modal bugs gefixt (Nieuw schap werkte niet)", "Google Books suggesties veilig ingesteld met Debounce (voorkomt IP ban)", "Lees streak dagen GIGANTISCH gemaakt op desktopweergave", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout"] },
+    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
+    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
+    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken toegevoegd", "Deel-rechten inzien en intrekken (Stop Delen) toegevoegd", "Visueel weekoverzicht vlammetjes toegevoegd"] }
 ];
 
 function BoekenApp() {
+    // Authenticatie & Profiel State
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -49,16 +52,19 @@ function BoekenApp() {
     const [allUsers, setAllUsers] = useState([]);
     const [dbError, setDbError] = useState(false);
 
+    // Impersonation State & Mobile Menu
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
 
+    // App Data State
     const [books, setBooks] = useState([]);
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
     const [searchQuery, setSearchQuery] = useState('');
 
+    // UI State
     const [activeTab, setActiveTab] = useState('schappen');
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
@@ -70,20 +76,25 @@ function BoekenApp() {
     const [errorMsg, setErrorMsg] = useState('');
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
 
+    // States voor Kalender & Streak Navigatie
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
     const [streakWeekOffset, setStreakWeekOffset] = useState(0);
 
+    // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
     const [isSearchingTitle, setIsSearchingTitle] = useState(false);
-    const searchTimeoutRef = useRef(null);
 
+    // Form States
     const initialBookState = { title: '', author: '', shelfId: '', cover: '', isbn: '', totalPages: '', pagesRead: 0 };
     const [newBook, setNewBook] = useState(initialBookState);
     const [newShelf, setNewShelf] = useState({ name: '', description: '' });
     const [editShelfData, setEditShelfData] = useState({ isOpen: false, id: '', name: '', description: '' });
+    
+    // Refs
     const scannerRef = useRef(null);
+    const searchTimeoutRef = useRef(null);
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -176,7 +187,7 @@ function BoekenApp() {
             }
         } catch (e) { console.warn('Google Books ISBN fetch error:', e); }
         
-        // 2. Als Google Books faalt, probeer OpenLibrary (met veilige error catch)
+        // 2. Als Google Books faalt, probeer OpenLibrary
         if (!foundBook) {
             try {
                 const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${queryIsbn}&format=json&jscmd=data`);
@@ -586,12 +597,13 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-4xl lg:text-7xl font-black text-stone-800 leading-none tracking-tighter">{stats.currentStreak} <span className="text-base lg:text-2xl text-stone-400 font-medium tracking-normal">dagen</span></p>
+                                                    {/* Extra gigantische text-8xl class voor desktop */}
+                                                    <p className="text-4xl md:text-8xl font-black text-stone-800 leading-none tracking-tighter">{stats.currentStreak} <span className="text-base md:text-2xl text-stone-400 font-medium tracking-normal">dagen</span></p>
                                                 </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="hidden sm:block w-px h-16 lg:h-20 bg-stone-200"></div>
+                                        <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200"></div>
                                         
                                         <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
                                             {renderWeeklyStreak()}
@@ -785,6 +797,7 @@ function BoekenApp() {
                 </main>
             </div>
 
+            {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -850,6 +863,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -876,6 +890,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Share Shelf Modal */}
             {shareShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -900,6 +915,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Edit Shelf Modal */}
             {editShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -909,10 +925,12 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
+            {/* View/Edit Book Modal */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]">
@@ -967,6 +985,12 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Add Shelf Modal */}
+            {isShelfModalOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"><div className="p-6 bg-stone-50"><h3 className="text-2xl font-black">Nieuw Schap</h3></div><form onSubmit={handleAddShelf} className="p-6"><input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-4 mb-4 font-bold bg-stone-50" placeholder="Bijv. Fantasy" /><div className="flex justify-end gap-3"><button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button></div></form></div></div>
+            )}
+
+            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
