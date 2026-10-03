@@ -45,6 +45,7 @@ function BoekenApp() {
     const [showLogin, setShowLogin] = useState(false);
     const [profileForm, setProfileForm] = useState({ name: '', email: '' });
     const [allUsers, setAllUsers] = useState([]);
+    const [dbError, setDbError] = useState(false);
 
     // Impersonation State & Mobile Menu
     const [impersonatedUser, setImpersonatedUser] = useState(null);
@@ -80,8 +81,15 @@ function BoekenApp() {
         const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
+                const fallbackTimer = setTimeout(() => {
+                    setLoading(false);
+                    setDbError(true);
+                }, 4000);
+
                 const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid);
                 onSnapshot(userDocRef, (docSnap) => {
+                    clearTimeout(fallbackTimer);
+                    setDbError(false);
                     if (docSnap.exists()) {
                         setUserData(docSnap.data());
                         setShowLogin(false);
@@ -89,7 +97,12 @@ function BoekenApp() {
                         setUserData(null);
                     }
                     setLoading(false);
-                }, (err) => { console.error(err); setLoading(false); });
+                }, (err) => { 
+                    clearTimeout(fallbackTimer);
+                    console.error("Firestore Error:", err); 
+                    setDbError(true);
+                    setLoading(false); 
+                });
             } else {
                 setUserData(null); setImpersonatedUser(null); setShowLogin(true); setLoading(false);
             }
@@ -129,7 +142,7 @@ function BoekenApp() {
         return () => { if (scannerRef.current) scannerRef.current.clear().catch(console.error); };
     }, [isScannerOpen]);
 
-const handleLogin = async (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault(); 
         setLoading(true);
         try { 
@@ -236,6 +249,25 @@ const handleLogin = async (e) => {
     const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); };
 
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
+
+    if (dbError) {
+        return (
+            <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen">
+                <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center border-2 border-red-500">
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle className="text-red-500" size={40}/></div>
+                    <h2 className="text-2xl font-black text-stone-800 mb-4">Database niet gevonden!</h2>
+                    <p className="text-stone-600 font-medium mb-6">Het inloggen is succesvol, maar de app kan niet starten omdat de <b>Firestore Database</b> nog niet is geactiveerd in jouw Firebase project.</p>
+                    <div className="text-left bg-stone-50 p-4 rounded-xl text-sm font-medium text-stone-700 space-y-2">
+                        <p>1. Ga naar de <b>Firebase Console</b>.</p>
+                        <p>2. Klik links in het menu op <b>Firestore Database</b>.</p>
+                        <p>3. Klik op de knop <b>Create database</b>.</p>
+                        <p>4. <b>Belangrijk:</b> Kies "Start in testmodus" (Start in Test mode) en sla op.</p>
+                    </div>
+                    <button onClick={() => window.location.reload()} className="mt-8 w-full bg-stone-900 text-white font-bold py-3 rounded-xl hover:bg-stone-800 transition-colors shadow-lg">Ik heb dit gedaan, laad de app</button>
+                </div>
+            </div>
+        );
+    }
 
     if (!user) {
         return (
