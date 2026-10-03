@@ -34,7 +34,7 @@ const toDateString = (dateObj) => {
 };
 
 const CHANGELOG = [
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Debounce (anti-spam) beveiliging ingebouwd voor API zoekopdrachten", "Google Books én OpenLibrary succesvol en veilig gecombineerd", "Dagen in de leesstreak flink vergroot op desktop weergave"] },
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Debounce (anti-spam) beveiliging ingebouwd voor API zoekopdrachten", "Google Books én OpenLibrary succesvol en veilig gecombineerd", "Dagen in de leesstreak flink vergroot op desktop weergave", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
     { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones", "Zoekfunctie toegevoegd voor boeken"] },
     { version: "7.0.0", date: "Oktober 2026", changes: ["Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
@@ -436,11 +436,13 @@ function BoekenApp() {
     const hasReadToday = isToday(stats.lastReadDate);
     const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
 
+    // Filter Books by Search Query
     const filteredBooks = books.filter(b => 
         b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    // Kalender opbouw variabelen
     const calYear = currentMonthDate.getFullYear();
     const calMonth = currentMonthDate.getMonth();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -478,6 +480,7 @@ function BoekenApp() {
         return days;
     };
 
+    // Render Compact Weekly Streak (Starting on Monday, with Arrows)
     const renderWeeklyStreak = () => {
         const today = new Date();
         const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
@@ -583,7 +586,6 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    {/* HIER IS DE STREAK FLINK VERGROOT OP DESKTOP */}
                                                     <p className="text-4xl lg:text-7xl font-black text-stone-800 leading-none tracking-tighter">{stats.currentStreak} <span className="text-base lg:text-2xl text-stone-400 font-medium tracking-normal">dagen</span></p>
                                                 </div>
                                             </div>
