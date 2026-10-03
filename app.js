@@ -36,7 +36,7 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt (geen overlap meer)"] },
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
     { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
     { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
@@ -174,7 +174,7 @@ function BoekenApp() {
             if (data.items && data.items.length > 0) {
                 const info = data.items[0].volumeInfo;
                 // Google covers zijn over HTTP, we fixen dat naar HTTPS voor veiligheid
-                const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || p.cover;
+                const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
                 setNewBook(p => ({ ...p, title: info.title || p.title, author: info.authors?.[0] || p.author, cover: coverUrl, totalPages: info.pageCount || p.totalPages }));
             } else {
                 setErrorMsg('Geen boek gevonden op dit ISBN.');
@@ -183,7 +183,7 @@ function BoekenApp() {
         finally { setIsFetchingIsbn(false); }
     };
 
-    // Geüpdatet naar Google Books API
+    // Geüpdatet naar Google Books API voor gecombineerde Zoek/Auteur suggesties
     const handleTitleChange = async (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
@@ -420,11 +420,8 @@ function BoekenApp() {
     // Render Compact Weekly Streak (Starting on Monday, with Arrows)
     const renderWeeklyStreak = () => {
         const today = new Date();
-        // JavaScript getDay() geeft 0 voor Zondag, 1 voor Maandag. 
-        // We rekenen om zodat Maandag = 0, Zondag = 6.
         const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
         
-        // Bepaal de startdatum (Maandag) van de geselecteerde week
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - currentDayIndex + (streakWeekOffset * 7));
 
@@ -435,7 +432,7 @@ function BoekenApp() {
             const dStr = toDateString(d);
             const hasRead = logsByDate[dStr] ? true : false;
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
-            const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; // e.g. 3/10
+            const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
             days.push(
                 <div key={i} className="flex flex-col items-center gap-1 min-w-[28px] sm:min-w-[32px]">
@@ -592,7 +589,6 @@ function BoekenApp() {
 
                         {activeTab === 'kalender' && (
                             <div className="max-w-4xl mx-auto space-y-6">
-                                {/* Mobile Fix voor Kalender Header */}
                                 <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-stone-200/60 gap-4">
                                     <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-3"><CalendarDays className="text-amber-500" size={32}/> Kalender</h2>
                                     <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end bg-stone-50 p-2 sm:p-0 rounded-xl sm:bg-transparent">
@@ -748,8 +744,8 @@ function BoekenApp() {
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="sm:col-span-2 relative">
-                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none text-sm transition-colors" placeholder="Bijv. De Hobbit" />
+                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none text-sm transition-colors" placeholder="Bijv. De Hobbit of Tolkien" />
                                         
                                         {/* Loading state voor zoeken */}
                                         {isSearchingTitle && (
