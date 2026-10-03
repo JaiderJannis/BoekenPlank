@@ -36,10 +36,10 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "9.1", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
-    { version: "8.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
-    { version: "7.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
-    { version: "6.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Lees streak weergave vergroot op desktop", "API overgezet naar Google Books voor betere NL/BE resultaten (inclusief zoeken op auteur)", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt"] },
+    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
+    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
+    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
 ];
 
 function BoekenApp() {
@@ -80,7 +80,7 @@ function BoekenApp() {
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
-    const [streakWeekOffset, setStreakWeekOffset] = useState(0); // Navigatie voor streak
+    const [streakWeekOffset, setStreakWeekOffset] = useState(0);
 
     // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
@@ -163,49 +163,102 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
-    // Geüpdatet naar Google Books API
+    // Gecombineerde API Fetch (Google Books + OpenLibrary) via ISBN
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
         setIsFetchingIsbn(true); setErrorMsg('');
+        
+        let foundBook = null;
+        
+        // 1. Probeer eerst Google Books
         try {
             const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${queryIsbn}`);
             const data = await res.json();
             if (data.items && data.items.length > 0) {
                 const info = data.items[0].volumeInfo;
-                // Google covers zijn over HTTP, we fixen dat naar HTTPS voor veiligheid
                 const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
-                setNewBook(p => ({ ...p, title: info.title || p.title, author: info.authors?.[0] || p.author, cover: coverUrl, totalPages: info.pageCount || p.totalPages }));
-            } else {
-                setErrorMsg('Geen boek gevonden op dit ISBN.');
+                foundBook = { title: info.title, author: info.authors?.[0], cover: coverUrl, totalPages: info.pageCount };
             }
-        } catch (e) { setErrorMsg('Fout bij ophalen API.'); } 
-        finally { setIsFetchingIsbn(false); }
+        } catch (e) { console.error('Google Books ISBN fetch error:', e); }
+        
+        // 2. Als Google Books faalt, probeer OpenLibrary
+        if (!foundBook) {
+            try {
+                const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${queryIsbn}&format=json&jscmd=data`);
+                const data = await res.json();
+                const info = data[`ISBN:${queryIsbn}`];
+                if (info) {
+                    foundBook = { title: info.title, author: info.authors?.[0]?.name, cover: info.cover?.large || info.cover?.medium, totalPages: info.number_of_pages };
+                }
+            } catch (e) { console.error('OpenLibrary ISBN fetch error:', e); }
+        }
+        
+        if (foundBook) {
+            setNewBook(p => ({ ...p, title: foundBook.title || p.title, author: foundBook.author || p.author, cover: foundBook.cover || p.cover, totalPages: foundBook.totalPages || p.totalPages }));
+        } else {
+            setErrorMsg('Geen boek gevonden op dit ISBN.');
+        }
+        
+        setIsFetchingIsbn(false);
     };
 
-    // Geüpdatet naar Google Books API voor gecombineerde Zoek/Auteur suggesties
+    // Gecombineerde API Suggesties (Google Books + OpenLibrary) voor Titel/Auteur
     const handleTitleChange = async (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
         if(q.length < 3) { setTitleSuggestions([]); return; }
         setIsSearchingTitle(true);
+        
+        let combinedResults = [];
+        
+        // Haal data van Google Books
         try {
             const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`);
             const data = await res.json();
-            setTitleSuggestions(data.items || []);
-        } catch(err) { console.error(err); }
-        finally { setIsSearchingTitle(false); }
+            if (data.items) {
+                const gbResults = data.items.map(item => ({
+                    source: 'google',
+                    id: item.id,
+                    title: item.volumeInfo.title,
+                    author: item.volumeInfo.authors ? item.volumeInfo.authors[0] : null,
+                    totalPages: item.volumeInfo.pageCount,
+                    cover: item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:')
+                }));
+                combinedResults = [...combinedResults, ...gbResults];
+            }
+        } catch(err) { console.error('Google Books suggesties error:', err); }
+
+        // Haal data van OpenLibrary
+        try {
+            const res = await fetch(`https://search.openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=5`);
+            const data = await res.json();
+            if (data.docs) {
+                const olResults = data.docs.map(doc => ({
+                    source: 'openlibrary',
+                    id: doc.key,
+                    title: doc.title,
+                    author: doc.author_name ? doc.author_name[0] : null,
+                    totalPages: doc.number_of_pages_median,
+                    cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null
+                }));
+                combinedResults = [...combinedResults, ...olResults];
+            }
+        } catch(err) { console.error('OpenLibrary suggesties error:', err); }
+        
+        // Deduplicatie op titel
+        const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title, item])).values());
+        setTitleSuggestions(uniqueResults.slice(0, 5)); // Toon maximaal 5 unieke resultaten
+        setIsSearchingTitle(false);
     };
 
     const selectTitleSuggestion = (item) => {
-        const info = item.volumeInfo;
-        const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
         setNewBook(p => ({
             ...p,
-            title: info.title,
-            author: info.authors ? info.authors[0] : p.author,
-            totalPages: info.pageCount || p.totalPages,
-            cover: coverUrl
+            title: item.title || p.title,
+            author: item.author || p.author,
+            totalPages: item.totalPages || p.totalPages,
+            cover: item.cover || p.cover
         }));
         setTitleSuggestions([]);
     };
@@ -763,14 +816,14 @@ function BoekenApp() {
                                                 </div>
                                                 {titleSuggestions.map((item, idx) => (
                                                     <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-3 transition-colors">
-                                                        {item.volumeInfo?.imageLinks?.smallThumbnail ? (
-                                                            <img src={item.volumeInfo.imageLinks.smallThumbnail.replace('http:', 'https:')} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />
+                                                        {item.cover ? (
+                                                            <img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />
                                                         ) : (
                                                             <div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>
                                                         )}
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-bold text-sm text-stone-800 truncate">{item.volumeInfo?.title}</p>
-                                                            <p className="text-xs text-stone-500 truncate">{item.volumeInfo?.authors?.join(', ') || 'Onbekende auteur'}</p>
+                                                            <p className="font-bold text-sm text-stone-800 truncate">{item.title}</p>
+                                                            <p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p>
                                                         </div>
                                                         <Plus size={16} className="text-amber-500 flex-shrink-0 opacity-50" />
                                                     </div>
