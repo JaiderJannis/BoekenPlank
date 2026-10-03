@@ -761,17 +761,17 @@ function BoekenApp() {
                                     </div>
                                     <div className="block md:hidden divide-y divide-stone-100">
                                         {allUsers.map(u => (
-                                            <div key={u.uid} className="p-4 flex flex-col gap-3">
+                                            <div key={u.uid} className="p-4 flex flex-col gap-2 sm:gap-3">
                                                 <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <p className="font-bold text-stone-800">{u.name}</p>
-                                                        <p className="text-sm text-stone-500 break-all">{u.email}</p>
+                                                    <div className="flex-1 min-w-0 mr-3">
+                                                        <p className="font-bold text-base text-stone-800 truncate">{u.name}</p>
+                                                        <p className="text-xs text-stone-500 truncate">{u.email}</p>
                                                     </div>
                                                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>{u.role.toUpperCase()}</span>
                                                 </div>
                                                 {u.uid !== user.uid && (
                                                     <div className="flex gap-2 mt-1">
-                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer Account</button>
+                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer</button>
                                                         <button onClick={() => toggleAdminRole(u.uid, u.role)} className="flex-1 flex justify-center items-center gap-1 bg-white border border-stone-300 text-stone-700 py-2 rounded-lg hover:bg-stone-100 text-xs font-bold"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
                                                     </div>
                                                 )}
