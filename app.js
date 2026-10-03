@@ -36,11 +36,10 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "9.0.0", date: "Oktober 2026", changes: ["API overgezet naar Google Books voor betere NL/BE resultaten", "Lees-streak start nu op maandag inclusief datums en navigatiepijltjes", "Systeem Beheer op smartphone omgezet naar Cards layout", "Kalender weergave op smartphone gefixt (geen overlap meer)"] },
     { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
     { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
-    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken toegevoegd", "Deel-rechten inzien en intrekken (Stop Delen) toegevoegd", "Visueel weekoverzicht (vlammetjes) toegevoegd aan de streak", "Covers verkleind voor meer overzicht", "Vlammetjes toegevoegd aan kalenderweergave"] },
-    { version: "5.0.0", date: "Oktober 2026", changes: ["Volledige Maandkalender toegevoegd", "Leesactiviteit handmatig toevoegen op specifieke dagen", "Schappen delen met andere gebruikers (Kopieer-functie)"] },
-    { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] }
+    { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken", "Deel-rechten intrekken", "Visueel weekoverzicht vlammetjes"] }
 ];
 
 function BoekenApp() {
@@ -77,10 +76,11 @@ function BoekenApp() {
     const [errorMsg, setErrorMsg] = useState('');
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
 
-    // Nieuwe States voor Kalender & Delen
+    // Nieuwe States voor Kalender & Streak Navigatie
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
+    const [streakWeekOffset, setStreakWeekOffset] = useState(0); // Navigatie voor streak
 
     // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
@@ -163,42 +163,49 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
+    // Geüpdatet naar Google Books API
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
         setIsFetchingIsbn(true); setErrorMsg('');
         try {
-            const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${queryIsbn}&format=json&jscmd=data`);
+            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${queryIsbn}`);
             const data = await res.json();
-            const info = data[`ISBN:${queryIsbn}`];
-            if (info) {
-                setNewBook(p => ({ ...p, title: info.title || p.title, author: info.authors?.[0]?.name || p.author, cover: info.cover?.large || info.cover?.medium || p.cover, totalPages: info.number_of_pages || p.totalPages }));
-            } else setErrorMsg('Geen boek gevonden op dit ISBN.');
+            if (data.items && data.items.length > 0) {
+                const info = data.items[0].volumeInfo;
+                // Google covers zijn over HTTP, we fixen dat naar HTTPS voor veiligheid
+                const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || p.cover;
+                setNewBook(p => ({ ...p, title: info.title || p.title, author: info.authors?.[0] || p.author, cover: coverUrl, totalPages: info.pageCount || p.totalPages }));
+            } else {
+                setErrorMsg('Geen boek gevonden op dit ISBN.');
+            }
         } catch (e) { setErrorMsg('Fout bij ophalen API.'); } 
         finally { setIsFetchingIsbn(false); }
     };
 
+    // Geüpdatet naar Google Books API
     const handleTitleChange = async (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
-        if(q.length < 4) { setTitleSuggestions([]); return; }
+        if(q.length < 3) { setTitleSuggestions([]); return; }
         setIsSearchingTitle(true);
         try {
-            const res = await fetch(`https://search.openlibrary.org/search.json?title=${encodeURIComponent(q)}&limit=5`);
+            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`);
             const data = await res.json();
-            setTitleSuggestions(data.docs || []);
+            setTitleSuggestions(data.items || []);
         } catch(err) { console.error(err); }
         finally { setIsSearchingTitle(false); }
     };
 
-    const selectTitleSuggestion = (docItem) => {
-        const coverId = docItem.cover_i;
+    const selectTitleSuggestion = (item) => {
+        const info = item.volumeInfo;
+        const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') || newBook.cover;
         setNewBook(p => ({
             ...p,
-            title: docItem.title,
-            author: docItem.author_name ? docItem.author_name[0] : p.author,
-            totalPages: docItem.number_of_pages_median || p.totalPages,
-            cover: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : p.cover
+            title: info.title,
+            author: info.authors ? info.authors[0] : p.author,
+            totalPages: info.pageCount || p.totalPages,
+            cover: coverUrl
         }));
         setTitleSuggestions([]);
     };
@@ -410,25 +417,46 @@ function BoekenApp() {
         return days;
     };
 
-    // Render Compact Weekly Streak
+    // Render Compact Weekly Streak (Starting on Monday, with Arrows)
     const renderWeeklyStreak = () => {
+        const today = new Date();
+        // JavaScript getDay() geeft 0 voor Zondag, 1 voor Maandag. 
+        // We rekenen om zodat Maandag = 0, Zondag = 6.
+        const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
+        
+        // Bepaal de startdatum (Maandag) van de geselecteerde week
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - currentDayIndex + (streakWeekOffset * 7));
+
         const days = [];
-        for(let i=6; i>=0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
+        for(let i=0; i<7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
             const dStr = toDateString(d);
             const hasRead = logsByDate[dStr] ? true : false;
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
+            const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; // e.g. 3/10
+            
             days.push(
-                <div key={i} className="flex flex-col items-center gap-1 min-w-[32px]">
+                <div key={i} className="flex flex-col items-center gap-1 min-w-[28px] sm:min-w-[32px]">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
                         {hasRead ? <Flame size={14} className="text-orange-500" /> : <span className="text-[10px] text-stone-400 font-bold">{dayName.charAt(0)}</span>}
                     </div>
-                    <span className="text-[9px] text-stone-500 font-bold uppercase">{dayName}</span>
+                    <span className="text-[9px] text-stone-500 font-bold uppercase leading-none">{dayName}</span>
+                    <span className="text-[8px] text-stone-400 font-medium leading-none">{shortDate}</span>
                 </div>
             );
         }
-        return <div className="flex gap-1.5 sm:gap-2 justify-between sm:justify-start w-full sm:w-auto">{days}</div>;
+        
+        return (
+            <div className="flex items-center gap-1 sm:gap-2 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 rounded-xl border border-stone-100">
+                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 text-stone-400 hover:text-stone-800 transition"><ChevronLeft size={18}/></button>
+                <div className="flex gap-1.5 sm:gap-2 justify-between flex-1 lg:flex-none">
+                    {days}
+                </div>
+                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 transition ${streakWeekOffset >= 0 ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-800'}`}><ChevronRight size={18}/></button>
+            </div>
+        );
     };
 
     return (
@@ -489,28 +517,26 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle') && (
                             <div className="mb-8">
-                                {/* Compacte Lees Streak Widget */}
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4">
                                     <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
-                                        <div className="flex items-center gap-4">
-                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
-                                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                <p className="text-2xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm text-stone-400 font-medium">dagen</span></p>
+                                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
+                                                    <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                                    <p className="text-2xl font-black text-stone-800 leading-none">{stats.currentStreak} <span className="text-sm text-stone-400 font-medium">dagen</span></p>
+                                                </div>
                                             </div>
                                         </div>
                                         
                                         <div className="hidden sm:block w-px h-12 bg-stone-200"></div>
                                         
-                                        {/* Weekoverzicht direct naast de streak */}
-                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
-                                            {renderWeeklyStreak()}
-                                        </div>
+                                        {renderWeeklyStreak()}
                                     </div>
                                     <div className="w-full lg:w-auto flex justify-end mt-2 lg:mt-0">
-                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full lg:w-auto px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full lg:w-auto px-4 py-3 sm:py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
                                             {hasReadToday ? <><CheckCircle2 size={16}/> Vandaag Gelezen</> : 'Gelezen!'}
                                         </button>
                                     </div>
@@ -566,22 +592,23 @@ function BoekenApp() {
 
                         {activeTab === 'kalender' && (
                             <div className="max-w-4xl mx-auto space-y-6">
-                                <div className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-stone-200/60">
+                                {/* Mobile Fix voor Kalender Header */}
+                                <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-stone-200/60 gap-4">
                                     <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-3"><CalendarDays className="text-amber-500" size={32}/> Kalender</h2>
-                                    <div className="flex items-center gap-4">
-                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth - 1, 1))} className="p-2 hover:bg-stone-100 rounded-full transition"><ChevronLeft size={24}/></button>
-                                        <h3 className="text-xl font-bold text-stone-800 w-40 text-center">{monthNames[calMonth]} {calYear}</h3>
-                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth + 1, 1))} className="p-2 hover:bg-stone-100 rounded-full transition"><ChevronRight size={24}/></button>
+                                    <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end bg-stone-50 p-2 sm:p-0 rounded-xl sm:bg-transparent">
+                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth - 1, 1))} className="p-2 hover:bg-stone-200 sm:hover:bg-stone-100 rounded-full transition"><ChevronLeft size={24}/></button>
+                                        <h3 className="text-lg sm:text-xl font-bold text-stone-800 w-32 sm:w-40 text-center truncate">{monthNames[calMonth]} {calYear}</h3>
+                                        <button onClick={() => setCurrentMonthDate(new Date(calYear, calMonth + 1, 1))} className="p-2 hover:bg-stone-200 sm:hover:bg-stone-100 rounded-full transition"><ChevronRight size={24}/></button>
                                     </div>
                                 </div>
 
-                                <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-stone-200/60">
-                                    <div className="grid grid-cols-7 gap-2 mb-2">
+                                <div className="bg-white p-3 sm:p-6 rounded-3xl shadow-sm border border-stone-200/60">
+                                    <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
                                         {['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].map(d => (
-                                            <div key={d} className="text-center font-bold text-stone-400 text-xs uppercase tracking-wider">{d}</div>
+                                            <div key={d} className="text-center font-bold text-stone-400 text-[10px] sm:text-xs uppercase tracking-wider">{d}</div>
                                         ))}
                                     </div>
-                                    <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                                    <div className="grid grid-cols-7 gap-1 sm:gap-3">
                                         {renderCalendarDays()}
                                     </div>
                                 </div>
@@ -592,10 +619,10 @@ function BoekenApp() {
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
                                     <h2 className="text-3xl font-black text-stone-800">Beheer Schappen</h2>
-                                    <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg"><Plus size={20} /> Nieuw Schap</button>
+                                    <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg w-full sm:w-auto justify-center"><Plus size={20} /> Nieuw Schap</button>
                                 </div>
-                                <div className="bg-white rounded-3xl p-5 shadow-md">
-                                    <div className="space-y-6">
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-md">
+                                    <div className="space-y-4 sm:space-y-6">
                                         {shelves.map(shelf => (
                                             <div key={shelf.id} className="flex flex-col p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -635,8 +662,8 @@ function BoekenApp() {
                                         {CHANGELOG.map((log, index) => (
                                             <div key={index} className="relative pl-6 border-l-2 border-stone-200">
                                                 <div className="absolute w-4 h-4 bg-amber-500 rounded-full -left-[9px] top-1"></div>
-                                                <div className="flex gap-3 mb-3"><h3 className="text-xl font-bold">Versie {log.version}</h3><span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{log.date}</span></div>
-                                                <ul className="list-disc ml-4 text-stone-600 font-medium">{log.changes.map((change, cIdx) => <li key={cIdx}>{change}</li>)}</ul>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-3"><h3 className="text-xl font-bold">Versie {log.version}</h3><span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full self-start sm:self-auto">{log.date}</span></div>
+                                                <ul className="list-disc ml-4 text-stone-600 font-medium text-sm sm:text-base">{log.changes.map((change, cIdx) => <li key={cIdx}>{change}</li>)}</ul>
                                             </div>
                                         ))}
                                     </div>
@@ -647,27 +674,52 @@ function BoekenApp() {
                         {activeTab === 'admin' && userData.role === 'admin' && (
                             <div className="max-w-5xl mx-auto space-y-6">
                                 <h2 className="text-3xl font-black flex items-center gap-3"><Shield className="text-red-500" size={36}/> Systeem Beheer</h2>
+                                
                                 <div className="bg-white rounded-3xl shadow-md overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-stone-100 text-stone-600 text-sm"><tr><th className="p-4">Naam</th><th className="p-4">Email</th><th className="p-4">Rol</th><th className="p-4 text-right">Acties</th></tr></thead>
-                                        <tbody>
-                                            {allUsers.map(u => (
-                                                <tr key={u.uid} className="border-t border-stone-100 hover:bg-stone-50">
-                                                    <td className="p-4 font-bold">{u.name}</td>
-                                                    <td className="p-4 text-sm text-stone-600">{u.email}</td>
-                                                    <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>{u.role}</span></td>
-                                                    <td className="p-4 flex justify-end gap-2">
-                                                        {u.uid !== user.uid && (
-                                                            <>
-                                                                <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
-                                                                <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-xs flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-2 py-1.5 rounded-lg hover:bg-stone-100 font-medium"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
-                                                            </>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    {/* Desktop Table View */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-stone-100 text-stone-600 text-sm"><tr><th className="p-4">Naam</th><th className="p-4">Email</th><th className="p-4">Rol</th><th className="p-4 text-right">Acties</th></tr></thead>
+                                            <tbody>
+                                                {allUsers.map(u => (
+                                                    <tr key={u.uid} className="border-t border-stone-100 hover:bg-stone-50">
+                                                        <td className="p-4 font-bold">{u.name}</td>
+                                                        <td className="p-4 text-sm text-stone-600">{u.email}</td>
+                                                        <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>{u.role}</span></td>
+                                                        <td className="p-4 flex justify-end gap-2">
+                                                            {u.uid !== user.uid && (
+                                                                <>
+                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
+                                                                    <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-xs flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-2 py-1.5 rounded-lg hover:bg-stone-100 font-medium"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
+                                                                </>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Mobile Cards View */}
+                                    <div className="block md:hidden divide-y divide-stone-100">
+                                        {allUsers.map(u => (
+                                            <div key={u.uid} className="p-4 flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-bold text-stone-800">{u.name}</p>
+                                                        <p className="text-sm text-stone-500 break-all">{u.email}</p>
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>{u.role.toUpperCase()}</span>
+                                                </div>
+                                                {u.uid !== user.uid && (
+                                                    <div className="flex gap-2 mt-1">
+                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer Account</button>
+                                                        <button onClick={() => toggleAdminRole(u.uid, u.role)} className="flex-1 flex justify-center items-center gap-1 bg-white border border-stone-300 text-stone-700 py-2 rounded-lg hover:bg-stone-100 text-xs font-bold"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -675,7 +727,7 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {/* Boek Toevoegen Modal - COMPACTER & SMARTPHONE OPTIMIZED */}
+            {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -700,9 +752,9 @@ function BoekenApp() {
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="De Hobbit" />
                                         {titleSuggestions.length > 0 && (
                                             <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden">
-                                                {titleSuggestions.map((s, idx) => (
-                                                    <div key={idx} onClick={() => selectTitleSuggestion(s)} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex justify-between items-center">
-                                                        <div><p className="font-bold text-sm text-stone-800 truncate">{s.title}</p><p className="text-xs text-stone-500">{s.author_name?.[0]}</p></div>
+                                                {titleSuggestions.map((item, idx) => (
+                                                    <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex justify-between items-center">
+                                                        <div><p className="font-bold text-sm text-stone-800 truncate">{item.volumeInfo?.title}</p><p className="text-xs text-stone-500">{item.volumeInfo?.authors?.[0]}</p></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -841,11 +893,6 @@ function BoekenApp() {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Add Shelf Modal */}
-            {isShelfModalOpen && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"><div className="p-6 bg-stone-50"><h3 className="text-2xl font-black">Nieuw Schap</h3></div><form onSubmit={handleAddShelf} className="p-6"><input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-4 mb-4 font-bold bg-stone-50" placeholder="Bijv. Fantasy" /><div className="flex justify-end gap-3"><button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button></div></form></div></div>
             )}
 
             {/* Camera Scanner Modal */}
