@@ -1,0 +1,9 @@
+    <style>
+        /* Voorkom scrollbar flashing en optimaliseer voor mobiel */
+        body { margin: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Scanner video fix */
+        #reader video { border-radius: 1rem; object-fit: cover; }
+    </style>
