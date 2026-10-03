@@ -146,7 +146,6 @@ function BoekenApp() {
         e.preventDefault(); 
         setLoading(true);
         try { 
-            // Gebruik de ECHTE Google Inlog methode
             const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider); 
         } catch (err) { 
@@ -303,9 +302,9 @@ function BoekenApp() {
     const hasReadToday = isToday(stats.lastReadDate);
 
     return (
-        <div className="flex-1 flex flex-col md:flex-row bg-stone-100 h-full overflow-hidden relative">
+        <div className="flex flex-col bg-stone-100 h-full overflow-hidden relative">
             
-            {/* Top Banners (Mobile Top Bar + Impersonation) */}
+            {/* Top Banners (Mobile Top Bar + Impersonation) - Nu gescheiden van de flex-row! */}
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {impersonatedUser && (
                     <div className="bg-red-600 text-white px-4 py-2 flex justify-between items-center shadow-md animate-pulse">
@@ -323,233 +322,236 @@ function BoekenApp() {
                 </div>
             </div>
 
-            {/* Mobile Overlay */}
-            {isMobileMenuOpen && (
-                <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
-            )}
+            {/* Hoofd Layout: Zijbalk + Content */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+                
+                {/* Mobile Overlay */}
+                {isMobileMenuOpen && (
+                    <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
+                )}
 
-            {/* Sidebar Menu */}
-            <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="p-6 pb-2 border-b border-stone-800">
-                    <div className="flex justify-between items-center mb-8">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl shadow-lg"><Library className="text-white" size={28} /></div>
-                            <h1 className="text-2xl font-bold tracking-wide leading-none">Boeken<span className="text-amber-500">Plank</span></h1>
+                {/* Sidebar Menu */}
+                <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <div className="p-6 pb-2 border-b border-stone-800">
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl shadow-lg"><Library className="text-white" size={28} /></div>
+                                <h1 className="text-2xl font-bold tracking-wide leading-none">Boeken<span className="text-amber-500">Plank</span></h1>
+                            </div>
+                            <button className="md:hidden text-stone-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
                         </div>
-                        <button className="md:hidden text-stone-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
-                    </div>
 
-                    <div className="flex items-center gap-3 mb-6 bg-stone-800/50 p-3 rounded-2xl border border-stone-700">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold text-lg border-2 border-stone-700">{userData.name.charAt(0).toUpperCase()}</div>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm truncate text-white">{userData.name}</p>
-                            <p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p>
+                        <div className="flex items-center gap-3 mb-6 bg-stone-800/50 p-3 rounded-2xl border border-stone-700">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold text-lg border-2 border-stone-700">{userData.name.charAt(0).toUpperCase()}</div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm truncate text-white">{userData.name}</p>
+                                <p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p>
+                            </div>
+                            <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors" title="Uitloggen"><LogOut size={16}/></button>
                         </div>
-                        <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors" title="Uitloggen"><LogOut size={16}/></button>
-                    </div>
-                </div>
-
-                <div className="p-6 flex-1 overflow-y-auto hide-scrollbar flex flex-col">
-                    <div className="bg-stone-800 rounded-2xl p-5 mb-8 border border-stone-700 shadow-inner relative overflow-hidden">
-                        <div className="absolute -right-4 -top-4 opacity-10"><Flame size={100} /></div>
-                        <div className="flex items-center justify-between mb-2 relative z-10">
-                            <span className="text-sm text-stone-400 font-medium">Lees Streak</span>
-                            <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-500'}`} size={20} />
-                        </div>
-                        <div className="text-4xl font-black mb-4 relative z-10 text-white">{stats.currentStreak} <span className="text-base font-normal text-stone-400">dagen</span></div>
-                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all relative z-10 ${hasReadToday ? 'bg-stone-700/50 text-stone-400 cursor-not-allowed border border-stone-700' : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-lg shadow-orange-500/20'}`}>
-                            {hasReadToday ? <><CheckCircle2 size={18}/> Vandaag Gelezen!</> : 'Ik heb gelezen!'}
-                        </button>
                     </div>
 
-                    <div className="flex flex-col gap-2 flex-1">
-                        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p>
-                        <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
-                        <button onClick={() => switchTab('alle')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookOpen size={20} /> Alle Boeken</button>
-                        
-                        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p>
-                        <button onClick={() => switchTab('beheer')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Settings size={20} /> Schappen Beheren</button>
-                        <button onClick={() => switchTab('changelog')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><History size={20} /> Versiegeschiedenis</button>
-                        
-                        {userData.role === 'admin' && (
-                            <button onClick={() => switchTab('admin')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Shield size={20} /> Systeem Admin</button>
-                        )}
-                    </div>
-
-                    {/* Copyright Vermelding */}
-                    <div className="mt-6 pt-4 border-t border-stone-800 text-center">
-                        <p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Main Scrollable Area */}
-            <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
-                <div className="max-w-7xl mx-auto">
-                    
-                    {(activeTab === 'schappen' || activeTab === 'alle') && (
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 sm:mb-10 gap-4">
-                            <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">
-                                {activeTab === 'schappen' ? 'Mijn Schappen' : 'Bibliotheek'}
-                            </h2>
-                            <button onClick={() => setIsBookModalOpen(true)} className="flex w-full sm:w-auto justify-center items-center gap-2 bg-stone-900 hover:bg-stone-800 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg shadow-stone-900/20">
-                                <Plus size={20} /> Boek Toevoegen
+                    <div className="p-6 flex-1 overflow-y-auto hide-scrollbar flex flex-col">
+                        <div className="bg-stone-800 rounded-2xl p-5 mb-8 border border-stone-700 shadow-inner relative overflow-hidden">
+                            <div className="absolute -right-4 -top-4 opacity-10"><Flame size={100} /></div>
+                            <div className="flex items-center justify-between mb-2 relative z-10">
+                                <span className="text-sm text-stone-400 font-medium">Lees Streak</span>
+                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-500'}`} size={20} />
+                            </div>
+                            <div className="text-4xl font-black mb-4 relative z-10 text-white">{stats.currentStreak} <span className="text-base font-normal text-stone-400">dagen</span></div>
+                            <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all relative z-10 ${hasReadToday ? 'bg-stone-700/50 text-stone-400 cursor-not-allowed border border-stone-700' : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-lg shadow-orange-500/20'}`}>
+                                {hasReadToday ? <><CheckCircle2 size={18}/> Vandaag Gelezen!</> : 'Ik heb gelezen!'}
                             </button>
                         </div>
-                    )}
 
-                    {activeTab === 'schappen' && (
-                        <div className="space-y-8 sm:space-y-12">
-                            {shelves.length === 0 ? (
-                                <div className="text-center py-16 sm:py-24 bg-white rounded-3xl border-2 border-stone-200 border-dashed shadow-sm px-4">
-                                    <div className="bg-stone-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Library className="text-stone-400" size={32} /></div>
-                                    <h3 className="text-2xl font-bold text-stone-800 mb-2">Je hebt nog geen schappen</h3>
-                                    <p className="text-stone-500 mb-8 max-w-md mx-auto">Ga naar Beheer om je eerste schap (bijv. Fantasy, Studie) aan te maken.</p>
-                                    <button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button>
-                                </div>
-                            ) : (
-                                shelves.map(shelf => {
-                                    const shelfBooks = books.filter(b => b.shelfId === shelf.id);
-                                    return (
-                                        <div key={shelf.id} className="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/60 relative overflow-hidden">
-                                            <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-500"></div>
-                                            <div className="mb-6 sm:mb-8 border-b border-stone-100 pb-4">
-                                                <h3 className="text-2xl sm:text-3xl font-black text-stone-800 flex items-center gap-3 tracking-tight">{shelf.name} <span className="text-sm font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
-                                                {shelf.description && <p className="text-stone-500 mt-2 font-medium">{shelf.description}</p>}
-                                            </div>
-                                            {shelfBooks.length === 0 ? <div className="bg-stone-50 rounded-2xl border border-stone-200 border-dashed p-6 sm:p-8 text-center"><p className="text-stone-500 font-medium">Dit schap is nog leeg.</p></div> : (
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
-                                            )}
-                                        </div>
-                                    );
-                                })
+                        <div className="flex flex-col gap-2 flex-1">
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p>
+                            <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
+                            <button onClick={() => switchTab('alle')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookOpen size={20} /> Alle Boeken</button>
+                            
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p>
+                            <button onClick={() => switchTab('beheer')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Settings size={20} /> Schappen Beheren</button>
+                            <button onClick={() => switchTab('changelog')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><History size={20} /> Versiegeschiedenis</button>
+                            
+                            {userData.role === 'admin' && (
+                                <button onClick={() => switchTab('admin')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Shield size={20} /> Systeem Admin</button>
                             )}
                         </div>
-                    )}
 
-                    {activeTab === 'alle' && (
-                        <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/60">
-                            {books.length === 0 ? <div className="text-center py-16 sm:py-20"><BookOpen className="mx-auto text-stone-300 mb-4" size={48} /><h3 className="text-xl font-bold text-stone-700 mb-2">Je bibliotheek is leeg</h3></div> : (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"><BookList books={books} onSelect={setSelectedBook} /></div>
-                            )}
+                        {/* Copyright Vermelding */}
+                        <div className="mt-6 pt-4 border-t border-stone-800 text-center">
+                            <p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p>
                         </div>
-                    )}
+                    </div>
+                </nav>
 
-                    {activeTab === 'beheer' && (
-                        <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
-                                <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">Beheer Schappen</h2>
-                                <button onClick={() => setIsShelfModalOpen(true)} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg shadow-amber-500/20">
-                                    <Plus size={20} /> Nieuw Schap
+                {/* Main Scrollable Area */}
+                <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
+                    <div className="max-w-7xl mx-auto">
+                        
+                        {(activeTab === 'schappen' || activeTab === 'alle') && (
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 sm:mb-10 gap-4">
+                                <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">
+                                    {activeTab === 'schappen' ? 'Mijn Schappen' : 'Bibliotheek'}
+                                </h2>
+                                <button onClick={() => setIsBookModalOpen(true)} className="flex w-full sm:w-auto justify-center items-center gap-2 bg-stone-900 hover:bg-stone-800 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg shadow-stone-900/20">
+                                    <Plus size={20} /> Boek Toevoegen
                                 </button>
                             </div>
+                        )}
 
+                        {activeTab === 'schappen' && (
+                            <div className="space-y-8 sm:space-y-12">
+                                {shelves.length === 0 ? (
+                                    <div className="text-center py-16 sm:py-24 bg-white rounded-3xl border-2 border-stone-200 border-dashed shadow-sm px-4">
+                                        <div className="bg-stone-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Library className="text-stone-400" size={32} /></div>
+                                        <h3 className="text-2xl font-bold text-stone-800 mb-2">Je hebt nog geen schappen</h3>
+                                        <p className="text-stone-500 mb-8 max-w-md mx-auto">Ga naar Beheer om je eerste schap (bijv. Fantasy, Studie) aan te maken.</p>
+                                        <button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button>
+                                    </div>
+                                ) : (
+                                    shelves.map(shelf => {
+                                        const shelfBooks = books.filter(b => b.shelfId === shelf.id);
+                                        return (
+                                            <div key={shelf.id} className="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/60 relative overflow-hidden">
+                                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-500"></div>
+                                                <div className="mb-6 sm:mb-8 border-b border-stone-100 pb-4">
+                                                    <h3 className="text-2xl sm:text-3xl font-black text-stone-800 flex items-center gap-3 tracking-tight">{shelf.name} <span className="text-sm font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
+                                                    {shelf.description && <p className="text-stone-500 mt-2 font-medium">{shelf.description}</p>}
+                                                </div>
+                                                {shelfBooks.length === 0 ? <div className="bg-stone-50 rounded-2xl border border-stone-200 border-dashed p-6 sm:p-8 text-center"><p className="text-stone-500 font-medium">Dit schap is nog leeg.</p></div> : (
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'alle' && (
                             <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/60">
-                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Library size={20} className="text-amber-500"/> Jouw Schappen</h3>
-                                {shelves.length === 0 ? <p className="text-stone-500 italic">Geen schappen gevonden.</p> : (
-                                    <div className="space-y-4">
-                                        {shelves.map(shelf => (
-                                            <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
-                                                <div>
-                                                    <p className="font-bold text-lg">{shelf.name}</p>
-                                                    <p className="text-sm text-stone-500">{books.filter(b=>b.shelfId === shelf.id).length} boeken</p>
+                                {books.length === 0 ? <div className="text-center py-16 sm:py-20"><BookOpen className="mx-auto text-stone-300 mb-4" size={48} /><h3 className="text-xl font-bold text-stone-700 mb-2">Je bibliotheek is leeg</h3></div> : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"><BookList books={books} onSelect={setSelectedBook} /></div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'beheer' && (
+                            <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
+                                    <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">Beheer Schappen</h2>
+                                    <button onClick={() => setIsShelfModalOpen(true)} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg shadow-amber-500/20">
+                                        <Plus size={20} /> Nieuw Schap
+                                    </button>
+                                </div>
+
+                                <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-md border border-stone-200/60">
+                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Library size={20} className="text-amber-500"/> Jouw Schappen</h3>
+                                    {shelves.length === 0 ? <p className="text-stone-500 italic">Geen schappen gevonden.</p> : (
+                                        <div className="space-y-4">
+                                            {shelves.map(shelf => (
+                                                <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-stone-50 rounded-2xl border border-stone-200 gap-4">
+                                                    <div>
+                                                        <p className="font-bold text-lg">{shelf.name}</p>
+                                                        <p className="text-sm text-stone-500">{books.filter(b=>b.shelfId === shelf.id).length} boeken</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                                        <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex-1 sm:flex-none flex justify-center items-center gap-1 bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold shadow-sm">
+                                                            <Edit3 size={16}/> Bewerk
+                                                        </button>
+                                                        <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="flex-none text-red-500 hover:bg-red-50 p-2 border border-transparent hover:border-red-200 rounded-xl transition-colors" title="Verwijder schap">
+                                                            <Trash2 size={20}/>
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                                                    {/* Nieuwe Bewerk Knop */}
-                                                    <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '' })} className="flex-1 sm:flex-none flex justify-center items-center gap-1 bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold shadow-sm">
-                                                        <Edit3 size={16}/> Bewerk
-                                                    </button>
-                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="flex-none text-red-500 hover:bg-red-50 p-2 border border-transparent hover:border-red-200 rounded-xl transition-colors" title="Verwijder schap">
-                                                        <Trash2 size={20}/>
-                                                    </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'changelog' && (
+                            <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
+                                <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight flex items-center gap-3">
+                                    <History className="text-amber-500" size={36}/> Versiegeschiedenis
+                                </h2>
+                                <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-md border border-stone-200/60">
+                                    <div className="space-y-8">
+                                        {CHANGELOG.map((log, index) => (
+                                            <div key={index} className="relative pl-6 border-l-2 border-stone-200">
+                                                <div className="absolute w-4 h-4 bg-amber-500 rounded-full -left-[9px] top-1 border-2 border-white shadow-sm"></div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-3">
+                                                    <h3 className="text-xl font-bold text-stone-800">Versie {log.version}</h3>
+                                                    <span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full self-start sm:self-auto">{log.date}</span>
                                                 </div>
+                                                <ul className="list-disc list-outside ml-4 text-stone-600 space-y-2 font-medium">
+                                                    {log.changes.map((change, cIdx) => (
+                                                        <li key={cIdx}>{change}</li>
+                                                    ))}
+                                                </ul>
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'changelog' && (
-                        <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
-                            <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight flex items-center gap-3">
-                                <History className="text-amber-500" size={36}/> Versiegeschiedenis
-                            </h2>
-                            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-md border border-stone-200/60">
-                                <div className="space-y-8">
-                                    {CHANGELOG.map((log, index) => (
-                                        <div key={index} className="relative pl-6 border-l-2 border-stone-200">
-                                            <div className="absolute w-4 h-4 bg-amber-500 rounded-full -left-[9px] top-1 border-2 border-white shadow-sm"></div>
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-3">
-                                                <h3 className="text-xl font-bold text-stone-800">Versie {log.version}</h3>
-                                                <span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-full self-start sm:self-auto">{log.date}</span>
-                                            </div>
-                                            <ul className="list-disc list-outside ml-4 text-stone-600 space-y-2 font-medium">
-                                                {log.changes.map((change, cIdx) => (
-                                                    <li key={cIdx}>{change}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ))}
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {activeTab === 'admin' && userData.role === 'admin' && (
-                        <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
-                            <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight flex items-center gap-3">
-                                <Shield className="text-red-500" size={36}/> Systeem Beheer
-                            </h2>
-                            <p className="text-stone-600 font-medium">Beheer alle gebruikers en neem tijdelijk accounts over om te helpen met support.</p>
+                        {activeTab === 'admin' && userData.role === 'admin' && (
+                            <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+                                <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight flex items-center gap-3">
+                                    <Shield className="text-red-500" size={36}/> Systeem Beheer
+                                </h2>
+                                <p className="text-stone-600 font-medium">Beheer alle gebruikers en neem tijdelijk accounts over om te helpen met support.</p>
 
-                            <div className="bg-white rounded-3xl shadow-md border border-stone-200/60 overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left whitespace-nowrap">
-                                        <thead className="bg-stone-100 text-stone-600 text-sm">
-                                            <tr>
-                                                <th className="p-4 font-bold">Naam</th>
-                                                <th className="p-4 font-bold">Email</th>
-                                                <th className="p-4 font-bold">Rol</th>
-                                                <th className="p-4 font-bold text-right">Acties</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-stone-100">
-                                            {allUsers.map(u => (
-                                                <tr key={u.uid} className="hover:bg-stone-50 transition-colors">
-                                                    <td className="p-4 font-bold text-stone-800">
-                                                        {u.name} {u.uid === user.uid && <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">Jij</span>}
-                                                    </td>
-                                                    <td className="p-4 text-stone-600 text-sm">{u.email}</td>
-                                                    <td className="p-4">
-                                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>
-                                                            {u.role === 'admin' ? 'Admin' : 'Gebruiker'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4 flex justify-end gap-2">
-                                                        {u.uid !== user.uid && (
-                                                            <>
-                                                                <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-sm flex items-center gap-1 bg-stone-900 text-white px-3 py-1.5 rounded-lg hover:bg-stone-800 transition-colors font-medium shadow-sm">
-                                                                    <ArrowLeftRight size={14}/> Beheer
-                                                                </button>
-                                                                <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-sm flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors font-medium">
-                                                                    <Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </td>
+                                <div className="bg-white rounded-3xl shadow-md border border-stone-200/60 overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left whitespace-nowrap">
+                                            <thead className="bg-stone-100 text-stone-600 text-sm">
+                                                <tr>
+                                                    <th className="p-4 font-bold">Naam</th>
+                                                    <th className="p-4 font-bold">Email</th>
+                                                    <th className="p-4 font-bold">Rol</th>
+                                                    <th className="p-4 font-bold text-right">Acties</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-stone-100">
+                                                {allUsers.map(u => (
+                                                    <tr key={u.uid} className="hover:bg-stone-50 transition-colors">
+                                                        <td className="p-4 font-bold text-stone-800">
+                                                            {u.name} {u.uid === user.uid && <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">Jij</span>}
+                                                        </td>
+                                                        <td className="p-4 text-stone-600 text-sm">{u.email}</td>
+                                                        <td className="p-4">
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>
+                                                                {u.role === 'admin' ? 'Admin' : 'Gebruiker'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 flex justify-end gap-2">
+                                                            {u.uid !== user.uid && (
+                                                                <>
+                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-sm flex items-center gap-1 bg-stone-900 text-white px-3 py-1.5 rounded-lg hover:bg-stone-800 transition-colors font-medium shadow-sm">
+                                                                        <ArrowLeftRight size={14}/> Beheer
+                                                                    </button>
+                                                                    <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-sm flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors font-medium">
+                                                                        <Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                </div>
-            </main>
+                    </div>
+                </main>
+            </div>
 
             {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
