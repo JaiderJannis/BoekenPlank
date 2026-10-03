@@ -36,6 +36,7 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Vandaag gelezen knop verkleind", "Uitgebreid Admin beheer (Rechten toewijzen) hersteld"] },
     { version: "6.0.0", date: "Oktober 2026", changes: ["Boeken achteraf bewerken toegevoegd", "Deel-rechten inzien en intrekken (Stop Delen) toegevoegd", "Visueel weekoverzicht (vlammetjes) toegevoegd aan de streak", "Covers verkleind voor meer overzicht", "Vlammetjes toegevoegd aan kalenderweergave"] },
     { version: "5.0.0", date: "Oktober 2026", changes: ["Volledige Maandkalender toegevoegd", "Leesactiviteit handmatig toevoegen op specifieke dagen", "Schappen delen met andere gebruikers (Kopieer-functie)"] },
     { version: "4.0.0", date: "Oktober 2026", changes: ["Lees Kalender toegevoegd", "Boek suggesties tijdens het typen van een titel (OpenLibrary)", "Afbeelding URL handmatig toevoegen", "Lees-streak prominent op dashboard gezet", "Mobiele lay-out balk bug verholpen"] },
@@ -62,6 +63,7 @@ function BoekenApp() {
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
+    const [searchQuery, setSearchQuery] = useState(''); // Zoekfunctie state
 
     // UI State
     const [activeTab, setActiveTab] = useState('schappen');
@@ -226,7 +228,6 @@ function BoekenApp() {
 
             const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
             
-            // Check if already shared with this user
             if (shelfToCopy.sharedWith && shelfToCopy.sharedWith.some(s => s.uid === targetUid)) {
                 return setShareShelfData(p => ({...p, loading: false, msg: 'Dit schap is al gedeeld met deze gebruiker.'}));
             }
@@ -244,7 +245,6 @@ function BoekenApp() {
                 });
             }
 
-            // Update owner's shelf array
             const ownerShelfRef = doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId);
             const currentShared = shelfToCopy.sharedWith || [];
             await updateDoc(ownerShelfRef, {
@@ -259,24 +259,27 @@ function BoekenApp() {
     };
 
     const handleRevokeShare = async (shelfId, shareObj) => {
-        requestConfirm(`Toegang intrekken voor ${shareObj.email}? Dit verwijdert het schap en alle daarin gedeelde boeken bij deze gebruiker.`, async () => {
+        requestConfirm(`Toegang intrekken voor ${shareObj.email}? Dit verwijdert het schap en de boeken bij deze gebruiker.`, async () => {
             try {
-                // Delete target shelf
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'shelves', shareObj.targetShelfId));
-                // Delete books inside target shelf
                 const targetBooksSnap = await getDocs(collection(db, 'artifacts', appId, 'users', shareObj.uid, 'books'));
                 targetBooksSnap.forEach(async (b) => {
                     if (b.data().shelfId === shareObj.targetShelfId) {
                         await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'books', b.id));
                     }
                 });
-                // Remove from owner's sharedWith array
                 const shelf = shelves.find(s => s.id === shelfId);
                 const newSharedWith = (shelf.sharedWith || []).filter(s => s.uid !== shareObj.uid);
                 await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId), { sharedWith: newSharedWith });
-            } catch (err) {
-                console.error("Fout bij intrekken:", err);
-            }
+            } catch (err) { console.error("Fout bij intrekken:", err); }
+        });
+    };
+
+    const toggleAdminRole = async (targetUid, currentRole) => {
+        if(!userData || userData.role !== 'admin') return;
+        const newRole = currentRole === 'admin' ? 'user' : 'admin';
+        requestConfirm(`Wil je de rol wijzigen naar ${newRole}?`, async () => { 
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUid), { role: newRole }); 
         });
     };
 
@@ -353,7 +356,7 @@ function BoekenApp() {
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
     };
 
-    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); };
+    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); };
 
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
     if (dbError) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border-2 border-red-500"><h3>Database Fout</h3><button onClick={() => window.location.reload()} className="mt-4 bg-stone-900 text-white font-bold py-2 px-4 rounded-xl">Herladen</button></div></div>;
@@ -362,6 +365,12 @@ function BoekenApp() {
 
     const hasReadToday = isToday(stats.lastReadDate);
     const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
+
+    // Filter Books by Search Query
+    const filteredBooks = books.filter(b => 
+        b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
 
     // Kalender opbouw variabelen
     const calYear = currentMonthDate.getFullYear();
@@ -491,13 +500,21 @@ function BoekenApp() {
                                         </div>
                                         {renderWeeklyStreak()}
                                     </div>
-                                    <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full md:w-1/3 px-6 py-5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-lg ${hasReadToday ? 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                        {hasReadToday ? <><CheckCircle2 size={24}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
-                                    </button>
+                                    <div className="w-full md:w-auto flex justify-end">
+                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                            {hasReadToday ? <><CheckCircle2 size={16}/> Vandaag Gelezen</> : 'Ik heb vandaag gelezen!'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                     <h2 className="text-3xl sm:text-4xl font-black text-stone-800 tracking-tight">{activeTab === 'schappen' ? 'Mijn Schappen' : 'Bibliotheek'}</h2>
-                                    <button onClick={() => setIsBookModalOpen(true)} className="flex w-full sm:w-auto justify-center items-center gap-2 bg-stone-900 hover:bg-stone-800 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-lg"><Plus size={20} /> Boek Toevoegen</button>
+                                    <div className="flex w-full sm:w-auto items-center gap-3">
+                                        <div className="relative flex-1 sm:w-64">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" size={16} />
+                                            <input type="text" placeholder="Zoek boek of auteur..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-200 focus:border-amber-500 outline-none text-sm bg-white" />
+                                        </div>
+                                        <button onClick={() => setIsBookModalOpen(true)} className="flex justify-center items-center gap-2 bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-lg text-sm"><Plus size={16} /> Boek</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -508,15 +525,19 @@ function BoekenApp() {
                                     <div className="text-center py-16 bg-white rounded-3xl border-2 border-stone-200 border-dashed"><Library className="text-stone-400 mx-auto mb-4" size={48}/><h3 className="text-2xl font-bold mb-4">Geen schappen</h3><button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button></div>
                                 ) : (
                                     shelves.map(shelf => {
-                                        const shelfBooks = books.filter(b => b.shelfId === shelf.id);
+                                        const shelfBooks = filteredBooks.filter(b => b.shelfId === shelf.id);
+                                        // Verberg schap als de zoekopdracht geen resultaten heeft in dit schap
+                                        if (searchQuery && shelfBooks.length === 0) return null;
+                                        
                                         return (
                                             <div key={shelf.id} className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60 relative overflow-hidden">
                                                 <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-500"></div>
                                                 <div className="mb-6 border-b border-stone-100 pb-4">
                                                     <h3 className="text-2xl font-black flex items-center gap-3">{shelf.name} <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
                                                 </div>
-                                                {/* Updated Grid for Smaller Covers */}
-                                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
+                                                {shelfBooks.length === 0 ? <p className="text-stone-400 italic">Geen boeken in dit schap.</p> : (
+                                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3"><BookList books={shelfBooks} onSelect={setSelectedBook} /></div>
+                                                )}
                                             </div>
                                         );
                                     })
@@ -525,8 +546,12 @@ function BoekenApp() {
                         )}
 
                         {activeTab === 'alle' && (
-                            <div className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                <BookList books={books} onSelect={setSelectedBook} />
+                            <div className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60">
+                                {filteredBooks.length === 0 ? (
+                                    <div className="text-center py-10"><p className="text-stone-500 font-bold">Geen boeken gevonden.</p></div>
+                                ) : (
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3"><BookList books={filteredBooks} onSelect={setSelectedBook} /></div>
+                                )}
                             </div>
                         )}
 
@@ -616,15 +641,19 @@ function BoekenApp() {
                                 <h2 className="text-3xl font-black flex items-center gap-3"><Shield className="text-red-500" size={36}/> Systeem Beheer</h2>
                                 <div className="bg-white rounded-3xl shadow-md overflow-hidden">
                                     <table className="w-full text-left">
-                                        <thead className="bg-stone-100 text-stone-600 text-sm"><tr><th className="p-4">Naam</th><th className="p-4">Rol</th><th className="p-4 text-right">Acties</th></tr></thead>
+                                        <thead className="bg-stone-100 text-stone-600 text-sm"><tr><th className="p-4">Naam</th><th className="p-4">Email</th><th className="p-4">Rol</th><th className="p-4 text-right">Acties</th></tr></thead>
                                         <tbody>
                                             {allUsers.map(u => (
-                                                <tr key={u.uid} className="border-t border-stone-100">
+                                                <tr key={u.uid} className="border-t border-stone-100 hover:bg-stone-50">
                                                     <td className="p-4 font-bold">{u.name}</td>
-                                                    <td className="p-4"><span className="px-3 py-1 bg-stone-200 rounded-full text-xs font-bold">{u.role}</span></td>
+                                                    <td className="p-4 text-sm text-stone-600">{u.email}</td>
+                                                    <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'}`}>{u.role}</span></td>
                                                     <td className="p-4 flex justify-end gap-2">
                                                         {u.uid !== user.uid && (
-                                                            <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-sm flex items-center gap-1 bg-stone-900 text-white px-3 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
+                                                            <>
+                                                                <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
+                                                                <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-xs flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-2 py-1.5 rounded-lg hover:bg-stone-100 font-medium"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
+                                                            </>
                                                         )}
                                                     </td>
                                                 </tr>
