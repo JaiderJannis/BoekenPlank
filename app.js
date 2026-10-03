@@ -8,7 +8,7 @@ import {
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -130,8 +130,16 @@ function BoekenApp() {
     }, [isScannerOpen]);
 
     const handleLogin = async (e) => {
-        e.preventDefault(); setLoading(true);
-        try { if (initToken) await signInWithCustomToken(auth, initToken); else await signInAnonymously(auth); } catch (err) { console.error(err); setLoading(false); }
+        e.preventDefault(); 
+        setLoading(true);
+        try { 
+            // Gebruik de ECHTE Google Inlog methode
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider); 
+        } catch (err) { 
+            console.error("Login fout:", err); 
+            setLoading(false); 
+        }
     };
 
     const handleCreateProfile = async (e) => {
