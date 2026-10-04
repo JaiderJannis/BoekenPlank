@@ -37,10 +37,9 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "10.1.0", date: "Oktober 2026", changes: ["API Rate-Limit protectie (Voorkomt Google Books '429' ban)", "Zoekfunctie wachttijd verhoogd naar 1,2 sec voor stabiliteit"] },
     { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' functionaliteit", "Nieuwe 'Gelezen' lijst", "Sterren-beoordeling en reviews voor uitgelezen boeken"] },
-    { version: "9.2.0", date: "Oktober 2026", changes: ["Modal bugs gefixt (Nieuw schap werkte niet)", "Google Books suggesties veilig ingesteld met Debounce (voorkomt IP ban)", "Lees streak dagen GIGANTISCH gemaakt op desktopweergave", "Systeem Beheer op smartphone omgezet naar Cards layout"] },
-    { version: "8.0.0", date: "Oktober 2026", changes: ["Lees-streak compacter gemaakt en vlammetjes naast elkaar gezet", "Boek-toevoegen venster verkleind en geoptimaliseerd voor smartphones"] },
-    { version: "7.0.0", date: "Oktober 2026", changes: ["Zoekfunctie toegevoegd", "Uitgebreid Admin beheer hersteld"] }
+    { version: "9.2.0", date: "Oktober 2026", changes: ["Modal bugs gefixt (Nieuw schap werkte niet)", "Google Books suggesties veilig ingesteld met Debounce", "Lees streak dagen GIGANTISCH gemaakt op desktopweergave"] }
 ];
 
 function BoekenApp() {
@@ -74,8 +73,9 @@ function BoekenApp() {
     const [editBookData, setEditBookData] = useState(null);
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [apiLimitError, setApiLimitError] = useState(false); // Nieuwe state voor 429 fout
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
-    const [isDragMode, setIsDragMode] = useState(false); // Drag & Drop toggle
+    const [isDragMode, setIsDragMode] = useState(false);
 
     // States voor Kalender & Streak Navigatie
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
@@ -167,23 +167,24 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
-    // API Fetches
+    // API Fetches met Rate-Limit Herkenning
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
-        setIsFetchingIsbn(true); setErrorMsg('');
+        setIsFetchingIsbn(true); setErrorMsg(''); setApiLimitError(false);
         let foundBook = null;
         try {
             const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${queryIsbn}`);
-            if(res.ok) {
+            if (res.status === 429) { setApiLimitError(true); }
+            else if(res.ok) {
                 const data = await res.json();
                 if (data.items && data.items.length > 0) {
                     const info = data.items[0].volumeInfo;
                     foundBook = { title: info.title, author: info.authors?.[0], cover: info.imageLinks?.thumbnail?.replace('http:', 'https:'), totalPages: info.pageCount };
                 }
             }
-        } catch (e) {}
-        if (!foundBook) {
+        } catch (e) { console.warn('Google Books ISBN fetch error:', e); }
+        if (!foundBook && !apiLimitError) {
             try {
                 const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${queryIsbn}&format=json&jscmd=data`);
                 if(res.ok) {
@@ -191,31 +192,43 @@ function BoekenApp() {
                     const info = data[`ISBN:${queryIsbn}`];
                     if (info) foundBook = { title: info.title, author: info.authors?.[0]?.name, cover: info.cover?.large || info.cover?.medium, totalPages: info.number_of_pages };
                 }
-            } catch (e) {}
+            } catch (e) { console.warn('OpenLibrary ISBN fetch error:', e); }
         }
         if (foundBook) setNewBook(p => ({ ...p, title: foundBook.title || p.title, author: foundBook.author || p.author, cover: foundBook.cover || p.cover, totalPages: foundBook.totalPages || p.totalPages }));
-        else setErrorMsg('Geen boek gevonden op dit ISBN.');
+        else if (!apiLimitError) setErrorMsg('Geen boek gevonden op dit ISBN.');
         setIsFetchingIsbn(false);
     };
 
     const handleTitleChange = (e) => {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
+        
+        // Vernietig vorige timeout (Dit heet debouncen)
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-        if(q.length < 3) { setTitleSuggestions([]); setIsSearchingTitle(false); return; }
+        if(q.length < 3) { setTitleSuggestions([]); setIsSearchingTitle(false); setApiLimitError(false); return; }
+        
         setIsSearchingTitle(true);
+        setApiLimitError(false);
+        
+        // Verhoogde wachttijd naar 1200ms om de 429 Google Ban te voorkomen
         searchTimeoutRef.current = setTimeout(async () => {
             let combinedResults = [];
+            let hitLimit = false;
+
             try {
                 const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`);
-                if(res.ok) {
+                if (res.status === 429) {
+                    hitLimit = true;
+                    setApiLimitError(true);
+                } else if(res.ok) {
                     const data = await res.json();
                     if (data.items) {
                         const gbResults = data.items.map(item => ({ id: item.id, title: item.volumeInfo.title, author: item.volumeInfo.authors ? item.volumeInfo.authors[0] : null, totalPages: item.volumeInfo.pageCount, cover: item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:') }));
                         combinedResults = [...combinedResults, ...gbResults];
                     }
                 }
-            } catch(err) {}
+            } catch(err) { console.warn('Google Books suggesties error:', err); }
+            
             try {
                 const res = await fetch(`https://search.openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=4`);
                 if(res.ok) {
@@ -225,11 +238,12 @@ function BoekenApp() {
                         combinedResults = [...combinedResults, ...olResults];
                     }
                 }
-            } catch(err) {}
+            } catch(err) { console.warn('OpenLibrary suggesties error:', err); }
+            
             const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title?.toLowerCase(), item])).values());
             setTitleSuggestions(uniqueResults.slice(0, 6));
             setIsSearchingTitle(false);
-        }, 600);
+        }, 1200); // 1.2 seconden wachttijd
     };
 
     const selectTitleSuggestion = (item) => {
@@ -275,7 +289,6 @@ function BoekenApp() {
             await handleLogReading(true);
         }
         
-        // Refresh selected book state for UI
         setSelectedBook(p => ({...p, pagesRead: newPages}));
     };
     
@@ -299,7 +312,7 @@ function BoekenApp() {
          requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId)); });
     };
 
-    // --- Nieuwe Functies: Schappen Volgorde & Drag/Drop ---
+    // --- Drag/Drop ---
     const sortedShelves = [...shelves].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     const handleMoveShelf = async (index, direction) => {
@@ -326,7 +339,7 @@ function BoekenApp() {
         const bookId = e.dataTransfer.getData('bookId');
         if (bookId) {
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', bookId), { shelfId });
-            setIsDragMode(false); // Optioneel: uitschakelen na verplaatsen
+            setIsDragMode(false); 
         }
     };
 
@@ -389,7 +402,7 @@ function BoekenApp() {
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
     };
 
-    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); };
+    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); };
 
     // Conditionele Weergaven
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
@@ -402,12 +415,8 @@ function BoekenApp() {
 
     // Filters voor lijsten
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
-    
-    // Voor reguliere weergave: boeken die NIET in de wensenlijst staan en NIET uitgelezen zijn
     const activeUnfinishedBooks = books.filter(b => b.shelfId !== 'wishlist' && !isBookFinished(b));
-    // Gelezen boeken (voor de "Gelezen" tab)
     const readBooks = books.filter(b => isBookFinished(b) && b.shelfId !== 'wishlist');
-    // Wensenlijst
     const wishlistBooks = books.filter(b => b.shelfId === 'wishlist');
 
     const filteredBooks = (activeTab === 'gelezen' ? readBooks : activeTab === 'wensenlijst' ? wishlistBooks : activeUnfinishedBooks).filter(b => 
@@ -453,7 +462,6 @@ function BoekenApp() {
         return days;
     };
 
-    // Render Compact Weekly Streak
     const renderWeeklyStreak = () => {
         const today = new Date();
         const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
@@ -815,21 +823,24 @@ function BoekenApp() {
                                     <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold"><Camera size={16} /></button>
                                 </div>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-xs mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14}/> Google API beveiliging actief. Wacht even met zoeken of typ langzamer.</p>}
                             </div>
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="sm:col-span-2 relative">
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none text-sm transition-colors" placeholder="Bijv. De Hobbit of Tolkien" />
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
                                         
-                                        {isSearchingTitle && (
+                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem tijdelijk overbelast: stop even met typen.</p>}
+
+                                        {isSearchingTitle && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
                                                 <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                                                 <p className="text-xs font-bold text-amber-700">Boeken zoeken...</p>
                                             </div>
                                         )}
 
-                                        {titleSuggestions.length > 0 && (
+                                        {titleSuggestions.length > 0 && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
                                                 <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
                                                     <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p>
