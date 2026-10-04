@@ -38,6 +38,7 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "11.4.0", date: "Oktober 2026", changes: ["Bugfix: Uitvinken van de lees-streak verwijdert nu ook direct netjes de vlammetjes van vandaag uit de kalender"] },
     { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
     { version: "11.2.0", date: "Oktober 2026", changes: ["Bugfix: Leesstreak wordt nu correct automatisch gehaald als je pagina's updatet", "Bewerk-knop is nu altijd volledig zichtbaar op smartphones"] },
     { version: "11.1.0", date: "Oktober 2026", changes: ["NIEUW: 'Plan B' handmatige Google Zoek-knoppen toegevoegd bij netwerk/API blokkades", "Verduidelijking toegevoegd bij falende ISBN scanner"] },
@@ -459,7 +460,7 @@ function BoekenApp() {
         let streak = stats.currentStreak || 0;
         
         if (isToday(stats.lastReadDate)) { 
-            if (!silent) return; // Als we op de knop drukken en het is al vandaag, doe niets.
+            if (!silent) return; 
         } else if (isYesterday(stats.lastReadDate)) {
             streak += 1; 
         } else {
@@ -469,10 +470,11 @@ function BoekenApp() {
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
     };
 
-    // NIEUW: Functie om lees-streak ongedaan te maken
+    // Functie om lees-streak ongedaan te maken en logboek-vlammetjes te verwijderen
     const handleUndoLogReading = async () => {
         if (!activeUserId) return;
         requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
+            // 1. Verlaag het nummer van de streak
             let newStreak = Math.max(0, (stats.currentStreak || 1) - 1);
             let newLastReadDate = null;
             if (newStreak > 0) {
@@ -481,6 +483,13 @@ function BoekenApp() {
                 newLastReadDate = y.toISOString();
             }
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: newStreak, lastReadDate: newLastReadDate }, { merge: true });
+            
+            // 2. Wis ALLE logboek registraties van vandaag zodat het vlammetje weggaat
+            const todayStr = getTodayString();
+            const logsToDelete = readingLogs.filter(log => log.date === todayStr);
+            for (const log of logsToDelete) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', log.id));
+            }
         });
     };
 
@@ -498,14 +507,13 @@ function BoekenApp() {
     // Filters voor lijsten
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
     
-    // Fix: Zorg dat gelezen boeken OVERAL zichtbaar blijven (behalve op de wensenlijst tab)
+    // Zorg dat gelezen boeken OVERAL zichtbaar blijven (behalve op de wensenlijst tab)
     let baseBooks = books;
     if (activeTab === 'wensenlijst') {
         baseBooks = books.filter(b => b.shelfId === 'wishlist');
     } else if (activeTab === 'gelezen') {
         baseBooks = books.filter(b => isBookFinished(b) && b.shelfId !== 'wishlist');
     } else {
-        // Zowel 'alle' als 'schappen' tonen alle boeken (gelezen + ongelezen) die NIET op de wensenlijst staan
         baseBooks = books.filter(b => b.shelfId !== 'wishlist');
     }
 
