@@ -27,7 +27,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
-// Datum Hulpfuncties
 const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
 const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
 const getTodayString = () => new Date().toISOString().split('T')[0]; 
@@ -36,7 +35,7 @@ const toDateString = (dateObj) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// Uitgebreid palet aan kleuren voor schappen
+// Uitgebreid palet aan kleuren voor schappen (inclusief grijs, pastel, zwart, wit, bruin)
 const SHELF_COLORS = [
     // Zwart, Wit & Grijstinten
     'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
@@ -76,7 +75,7 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
-    { version: "13.0.0", date: "Oktober 2026", changes: ["Gigantische lees-streak weergave op computers", "Spatie-bug gefixt in mobiel menu", "UI optimalisaties"] },
+    { version: "13.0.0", date: "Oktober 2026", changes: ["Gigantische vlammetjes-streak kalender op computers", "Spatie-bug gefixt in mobiel menu (BoekenPlank)", "Tags, Quote Generator en Gekleurde Schappen"] },
     { version: "12.1.0", date: "Oktober 2026", changes: ["Gigantische uitbreiding van kleurenpalet voor schappen (50+ tinten!)", "Kleur-kiezer pop-up scrolbaar gemaakt voor smartphones"] },
     { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots"] },
     { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
@@ -106,7 +105,7 @@ function BoekenApp() {
 
     // UI State
     const [activeTab, setActiveTab] = useState('schappen');
-    const [collapsedShelves, setCollapsedShelves] = useState([]); // Nieuw: Inklapbare schappen
+    const [collapsedShelves, setCollapsedShelves] = useState([]); 
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -221,7 +220,6 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
-    // API Fetches met verbeterde 429 Error Handling
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
@@ -305,12 +303,10 @@ function BoekenApp() {
         setTitleSuggestions([]);
     };
 
-    // Schappen Inklappen
     const toggleShelf = (shelfId) => {
         setCollapsedShelves(prev => prev.includes(shelfId) ? prev.filter(id => id !== shelfId) : [...prev, shelfId]);
     };
 
-    // Schappen & Boeken CRUD
     const handleAddShelf = async (e) => {
         e.preventDefault(); if (!activeUserId || !newShelf.name) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', order: shelves.length, createdAt: new Date().toISOString() });
@@ -357,8 +353,6 @@ function BoekenApp() {
         if (newPages > (orig?.pagesRead || 0)) {
             const todayStr = getTodayString();
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
-            
-            // Streak automatisch updaten (silent = true)
             await handleLogReading(true);
         }
         
@@ -371,7 +365,6 @@ function BoekenApp() {
         alert("Beoordeling opgeslagen!");
     };
 
-    // Notities & Quotes
     const handleAddNote = async (e) => {
         e.preventDefault();
         if (!activeUserId || !selectedBook || !newNote.text) return;
@@ -390,7 +383,6 @@ function BoekenApp() {
         });
     };
 
-    // Uitleenbeheer
     const handleLendBook = async (e) => {
         e.preventDefault();
         if (!activeUserId || !selectedBook || !lendData.name) return;
@@ -450,7 +442,6 @@ function BoekenApp() {
         }
     };
 
-    // Delen & Loggen
     const handleShareShelfSubmit = async (e) => {
         e.preventDefault();
         setShareShelfData(p => ({...p, loading: true, msg: ''}));
@@ -516,11 +507,9 @@ function BoekenApp() {
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
     };
 
-    // Functie om lees-streak ongedaan te maken en logboek-vlammetjes te verwijderen
     const handleUndoLogReading = async () => {
         if (!activeUserId) return;
         requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
-            // 1. Verlaag het nummer van de streak
             let newStreak = Math.max(0, (stats.currentStreak || 1) - 1);
             let newLastReadDate = null;
             if (newStreak > 0) {
@@ -530,7 +519,6 @@ function BoekenApp() {
             }
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: newStreak, lastReadDate: newLastReadDate }, { merge: true });
             
-            // 2. Wis ALLE logboek registraties van vandaag zodat het vlammetje weggaat
             const todayStr = getTodayString();
             const logsToDelete = readingLogs.filter(log => log.date === todayStr);
             for (const log of logsToDelete) {
@@ -541,7 +529,6 @@ function BoekenApp() {
 
     const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); };
 
-    // Conditionele Weergaven
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
     if (dbError) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border-2 border-red-500"><h3>Database Fout</h3><button onClick={() => window.location.reload()} className="mt-4 bg-stone-900 text-white font-bold py-2 px-4 rounded-xl">Herladen</button></div></div>;
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
@@ -550,10 +537,8 @@ function BoekenApp() {
     const hasReadToday = isToday(stats.lastReadDate);
     const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
 
-    // Filters voor lijsten
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
     
-    // Zorg dat gelezen boeken OVERAL zichtbaar blijven (behalve op de wensenlijst tab)
     let baseBooks = books;
     if (activeTab === 'wensenlijst') {
         baseBooks = books.filter(b => b.shelfId === 'wishlist');
@@ -568,7 +553,6 @@ function BoekenApp() {
         (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
-    // Kalender opbouw
     const calYear = currentMonthDate.getFullYear();
     const calMonth = currentMonthDate.getMonth();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -621,7 +605,7 @@ function BoekenApp() {
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
-            // LET OP: Hier zijn de min-w, w, h groottes specifiek voor de computer flink vergroot!
+            // LET OP: Deze weergave is gigantisch op de computer!
             days.push(
                 <div key={i} className="flex flex-col items-center gap-1 md:gap-3 min-w-[28px] sm:min-w-[32px] md:min-w-[70px]">
                     <div className={`w-7 h-7 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
@@ -655,7 +639,7 @@ function BoekenApp() {
                     </div>
                 )}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
-                    {/* Geen spatie meer tussen icoon en "BoekenPlank" op mobiel! */}
+                    {/* Spatie gefixt! Nu staat er BoekenPlank zonder spatie */}
                     <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                 </div>
@@ -666,7 +650,6 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
-                {}
                 <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
@@ -706,7 +689,6 @@ function BoekenApp() {
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
-                        {}
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4">
@@ -975,7 +957,7 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {/* Boek Toevoegen Modal */}
+            {}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -1045,7 +1027,13 @@ function BoekenApp() {
                                         )}
                                     </div>
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Auteur" /></div>
-                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres (komma gescheiden)</label><input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Thriller, Magie" /></div>
+                                    
+                                    {/* Labels & Genres Input */}
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label>
+                                        <input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Thriller, Magie (gescheiden met komma)" />
+                                    </div>
+
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
                                     <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="300" /></div>
                                     <div><label className="block text-xs font-bold text-stone-700 mb-1">Al Gelezen</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
@@ -1122,7 +1110,7 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* View/Edit Book Modal */}
+            {}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
@@ -1137,7 +1125,6 @@ function BoekenApp() {
                         {/* Rechterkant (Inhoud) */}
                         <div className="p-0 flex flex-col bg-white overflow-hidden md:w-3/5 flex-1">
                             
-                            {/* Header met Titel en Acties */}
                             <div className="p-5 md:p-6 pb-0 border-b border-stone-100 flex-shrink-0">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex-1 pr-2">
@@ -1175,7 +1162,6 @@ function BoekenApp() {
                                 )}
                             </div>
                             
-                            {/* Content Area */}
                             <div className="p-5 md:p-6 overflow-y-auto flex-1 flex flex-col bg-stone-50/50">
                                 {isEditingBook && editBookData ? (
                                     <form onSubmit={handleUpdateBookDetails} className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
@@ -1185,7 +1171,10 @@ function BoekenApp() {
                                         </div>
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Titel</label><input type="text" required value={editBookData.title} onChange={e => setEditBookData({...editBookData, title: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={editBookData.author} onChange={e => setEditBookData({...editBookData, author: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
-                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres (komma gescheiden)</label><input type="text" value={editBookData.tags || ''} onChange={e => setEditBookData({...editBookData, tags: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                        
+                                        {/* Edit Tags Input */}
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label><input type="text" value={editBookData.tags || ''} onChange={e => setEditBookData({...editBookData, tags: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" placeholder="Bijv. Thriller, Spanning" /></div>
+                                        
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL</label><input type="text" value={editBookData.cover || ''} onChange={e => setEditBookData({...editBookData, cover: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
@@ -1266,7 +1255,6 @@ function BoekenApp() {
                                                                 {note.type === 'quote' ? (
                                                                     <>
                                                                         <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
-                                                                        {/* Knop voor Screenshot Quote Generator */}
                                                                         <button onClick={() => setQuoteCard({text: note.text, author: selectedBook.author, title: selectedBook.title, cover: selectedBook.cover})} className="mt-3 ml-6 bg-stone-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-amber-500 transition-colors"><Camera size={12}/> Mooie Quote-kaart maken</button>
                                                                     </>
                                                                 ) : (
@@ -1319,20 +1307,18 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Mooie Quote-Kaart Screenshot Modal */}
+            {}
             {quoteCard && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
                     
-                    <div className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800">
+                    <div id="quote-capture-area" className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800 bg-stone-900">
                         {/* Background */}
-                        {quoteCard.cover ? (
+                        {quoteCard.cover && (
                             <>
                                 <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110" style={{ backgroundImage: `url(${quoteCard.cover})` }}></div>
                                 <div className="absolute inset-0 bg-gradient-to-b from-stone-900/60 via-stone-900/80 to-stone-900"></div>
                             </>
-                        ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-stone-800 to-black"></div>
                         )}
                         
                         {/* Content */}
@@ -1352,7 +1338,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Add Shelf Modal met Kleuren */}
             {isShelfModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1367,7 +1352,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 border-stone-200 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
                             
@@ -1380,7 +1365,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Edit Shelf Modal met Kleuren */}
             {editShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1395,7 +1379,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 border-stone-200 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
 
@@ -1405,7 +1389,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
