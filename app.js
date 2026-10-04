@@ -7,8 +7,10 @@ import {
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
     Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
-    Headphones, Tablet, Play, Square
+    Headphones, Tablet, Play, Square, Upload, FileUp
 } from 'https://esm.sh/lucide-react@0.292.0';
+
+import Papa from 'https://esm.sh/papaparse@5.4.1';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
@@ -65,6 +67,7 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "15.1.0", date: "Oktober 2026", changes: ["Standaardweergave aangepast naar 'Alle Boeken' in plaats van schappen"] },
     { version: "15.0.0", date: "Oktober 2026", changes: ["⏱️ Ingebouwde Leestimer (Stopwatch) toegevoegd", "🎧 Formaat Selectie: Fysiek, E-Book en Audioboek (met minuten i.p.v. pagina's)", "📚 Boekenreeksen: Reeks en deelnummer toevoegen", "Lay-out van Gelezen-knop geperfectioneerd voor computer"] },
     { version: "13.0.0", date: "Oktober 2026", changes: ["Gigantische vlammetjes-streak kalender op computers", "Spatie-bug gefixt in mobiel menu (BoekenPlank)", "Tags, Quote Generator en Gekleurde Schappen"] },
     { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots"] },
@@ -139,14 +142,14 @@ function BoekenApp() {
     const [readingLogs, setReadingLogs] = useState([]); 
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [activeTab, setActiveTab] = useState('alle'); // Aangepast van 'schappen' naar 'alle'
+    const [activeTab, setActiveTab] = useState('alle'); // Aangepast naar 'alle'
     const [collapsedShelves, setCollapsedShelves] = useState([]); 
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     
     const [selectedBook, setSelectedBook] = useState(null); 
-    const [bookModalTab, setBookModalTab] = useState('overzicht'); // 'overzicht', 'notities', 'uitleen', 'leessessie'
+    const [bookModalTab, setBookModalTab] = useState('overzicht');
     const [isEditingBook, setIsEditingBook] = useState(false);
     const [editBookData, setEditBookData] = useState(null);
     const [newNote, setNewNote] = useState({ text: '', type: 'quote' });
@@ -172,6 +175,11 @@ function BoekenApp() {
     const [newShelf, setNewShelf] = useState({ name: '', description: '', color: 'bg-amber-500' });
     const [editShelfData, setEditShelfData] = useState({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' });
     
+    // CSV Import States & Refs
+    const [isImporting, setIsImporting] = useState(false);
+    const [importStats, setImportStats] = useState({ total: 0, current: 0 });
+    const fileInputRef = useRef(null);
+
     const scannerRef = useRef(null);
     const searchTimeoutRef = useRef(null);
 
@@ -246,7 +254,9 @@ function BoekenApp() {
         await setDoc(userRef, { name: profileForm.name, email: profileForm.email, role: isAdmin ? 'admin' : 'user', createdAt: new Date().toISOString() });
     };
 
+    // Logout reset tab naar 'alle'
     const handleLogout = async () => { await signOut(auth); setActiveTab('alle'); };
+    
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
@@ -569,6 +579,85 @@ function BoekenApp() {
         });
     };
 
+    const handleFileUpload = (event) => {
+        const file = event.target.files[0];
+        if (!file || !activeUserId) return;
+        setIsImporting(true);
+        
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const rows = results.data;
+                setImportStats({ total: rows.length, current: 0 });
+                
+                // Zoek of maak het 'Geïmporteerd' schap aan
+                let importedShelfId = '';
+                const existingShelf = shelves.find(s => s.name.toLowerCase() === 'geïmporteerd' || s.name.toLowerCase() === 'imported');
+                if (existingShelf) {
+                    importedShelfId = existingShelf.id;
+                } else {
+                    try {
+                        const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), {
+                            name: 'Geïmporteerd', description: 'Boeken toegevoegd via CSV import', color: 'bg-blue-500', order: shelves.length, createdAt: new Date().toISOString()
+                        });
+                        importedShelfId = newShelfRef.id;
+                    } catch(e) {
+                        console.error("Fout bij aanmaken schap", e);
+                        setIsImporting(false);
+                        return;
+                    }
+                }
+
+                // Loop door de CSV rijen en voeg ze één voor één toe
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    
+                    // Flexibele mapping zodat het werkt met Goodreads, Bookshelf, etc.
+                    const title = row['Title'] || row['titel'] || row['Boektitel'] || row['book_title'] || 'Onbekend Boek';
+                    const author = row['Author'] || row['Auteur'] || row['author_name'] || 'Onbekende Auteur';
+                    const isbn = row['ISBN13'] || row['ISBN'] || row['isbn'] || '';
+                    const totalPagesStr = row['Number of Pages'] || row['Pages'] || row['Pagina\'s'] || row['pages'] || '0';
+                    const totalPages = parseInt(String(totalPagesStr).replace(/[^0-9]/g, '')) || 0;
+                    
+                    const ratingStr = row['My Rating'] || row['Rating'] || row['rating'] || '0';
+                    const rating = parseInt(ratingStr) || 0;
+                    const review = row['My Review'] || row['Review'] || row['review'] || '';
+                    
+                    const tags = row['Bookshelves'] || row['Tags'] || row['genres'] || '';
+
+                    await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), {
+                        title,
+                        author,
+                        isbn: String(isbn).replace(/[^0-9X]/gi, ''),
+                        totalPages,
+                        pagesRead: rating > 0 ? totalPages : 0, // Als het een sterren-beoordeling heeft, is het wss uitgelezen
+                        rating,
+                        review,
+                        shelfId: importedShelfId,
+                        cover: '',
+                        tags: String(tags).replace(/,/g, ', '), // Fatsoeneer komma's
+                        format: 'fysiek',
+                        addedAt: new Date().toISOString()
+                    });
+                    
+                    setImportStats({ total: rows.length, current: i + 1 });
+                }
+                
+                setIsImporting(false);
+                alert(`Import succesvol! Er zijn ${rows.length} boeken toegevoegd aan het schap "Geïmporteerd".`);
+                switchTab('schappen');
+            },
+            error: (err) => {
+                alert("Er is een fout opgetreden bij het lezen van het bestand.");
+                setIsImporting(false);
+            }
+        });
+        
+        // Reset file input
+        event.target.value = null;
+    };
+
     const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); };
 
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
@@ -726,6 +815,7 @@ function BoekenApp() {
                     </div>
                 </nav>
 
+                {}
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
@@ -786,7 +876,6 @@ function BoekenApp() {
                             </div>
                         )}
 
-                        {/* Schappen met Kleur en Inklappen */}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -887,6 +976,20 @@ function BoekenApp() {
                                     </div>
                                     <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg w-full sm:w-auto justify-center"><Plus size={20} /> Nieuw Schap</button>
                                 </div>
+                                
+                                {/* Nieuwe Importeer Widget */}
+                                <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-black flex items-center gap-2 text-stone-800"><Upload size={18} className="text-amber-500"/> CSV Importeren</h3>
+                                        <p className="text-sm text-stone-500 mt-1">Importeer boeken via een CSV bestand (bijv. van Bookshelf of Goodreads).</p>
+                                    </div>
+                                    <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                    <button onClick={() => fileInputRef.current.click()} disabled={isImporting} className="w-full sm:w-auto bg-stone-900 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:bg-stone-800 disabled:opacity-50 min-w-[200px]">
+                                        {isImporting ? <Loader2 className="animate-spin" size={18}/> : <FileUp size={18}/>} 
+                                        {isImporting ? `Importeren... (${importStats.current}/${importStats.total})` : 'Kies .CSV Bestand'}
+                                    </button>
+                                </div>
+
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-md border border-stone-200/60">
                                     <div className="space-y-4">
                                         {sortedShelves.map((shelf, index) => (
@@ -1002,7 +1105,6 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {/* Boek Toevoegen Modal (Met Formaat & Reeks) */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -1125,7 +1227,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -1152,7 +1253,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Share Shelf Modal */}
             {shareShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -1177,12 +1277,10 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* Book Details & Tabs Modal */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
@@ -1229,7 +1327,7 @@ function BoekenApp() {
                                     </div>
                                 </div>
                                 
-                                {/* Tabs Navigatie met nieuwe Timer Tab */}
+                                {/* Tabs Navigatie met Timer Tab */}
                                 {!isEditingBook && (
                                     <div className="flex gap-4 overflow-x-auto hide-scrollbar -mb-[1px]">
                                         <button onClick={() => setBookModalTab('overzicht')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${bookModalTab === 'overzicht' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>Overzicht</button>
@@ -1288,7 +1386,7 @@ function BoekenApp() {
                                     </form>
                                 ) : (
                                     <>
-                                        {/* TAB: LEESSESSIE (Nieuw) */}
+                                        {/* TAB: LEESSESSIE */}
                                         {bookModalTab === 'leessessie' && (
                                             <ReadingTimer 
                                                 book={selectedBook} 
@@ -1425,7 +1523,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Mooie Quote-Kaart Screenshot Modal */}
             {quoteCard && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
@@ -1458,7 +1555,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Add Shelf Modal met Kleuren */}
             {isShelfModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1511,7 +1607,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
