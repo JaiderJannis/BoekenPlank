@@ -1871,6 +1871,3 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<BoekenApp />);
-```eof
-
-Probeer het menu links op je desktop maar eens in te klappen, je zult zien dat je dan prachtig de hele breedte van je scherm kunt gebruiken voor de boeken! Werkt het updaten van de pagina's in de kalender nu helemaal naar wens?
