@@ -31,13 +31,12 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
-const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
-const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
-const getTodayString = () => new Date().toISOString().split('T')[0]; 
+// Datum Hulpfuncties
 const toDateString = (dateObj) => {
     const d = new Date(dateObj);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+const getTodayString = () => toDateString(new Date()); 
 
 const SHELF_COLORS = [
     'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
@@ -68,6 +67,7 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "18.1.0", date: "Oktober 2026", changes: ["Dynamische streakberekening ingebouwd! De lees-streak kijkt nu real-time naar je kalender en is altijd perfect in sync.", "Tijdzone en datum berekeningen gefixt"] },
     { version: "18.0.0", date: "Oktober 2026", changes: ["Je kunt nu in de kalender achteraf de gelezen pagina's makkelijk aanpassen (via het bewerk-icoontje)", "Tags & Genres kunnen nu ook aan de Schappen worden toegevoegd!"] },
     { version: "17.0.0", date: "Oktober 2026", changes: ["Menu inklapbaar gemaakt op desktop voor meer werkruimte", "Op smartphone is de menu-knop naar de linkerkant verplaatst", "Pagina's (en minuten) kunnen nu direct worden bewerkt bij het toevoegen van een log aan de kalender!"] },
     { version: "16.2.0", date: "Oktober 2026", changes: ["Je kunt nu boeken achteraf VERWIJDEREN uit de maandkalender!"] },
@@ -140,7 +140,6 @@ function BoekenApp() {
 
     const [books, setBooks] = useState([]);
     const [shelves, setShelves] = useState([]);
-    const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -217,12 +216,9 @@ function BoekenApp() {
         if (!activeUserId) return;
         const unsubBooks = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), s => setBooks(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
         const unsubShelves = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), s => setShelves(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
-        const unsubStats = onSnapshot(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), d => { 
-            if(d.exists()) setStats(d.data()); else setStats({ currentStreak: 0, lastReadDate: null });
-        }, console.error);
         const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'readingLog'), s => setReadingLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
         
-        return () => { unsubBooks(); unsubShelves(); unsubStats(); unsubLogs(); };
+        return () => { unsubBooks(); unsubShelves(); unsubLogs(); };
     }, [activeUserId]);
 
     useEffect(() => {
@@ -457,7 +453,6 @@ function BoekenApp() {
         if (newPages > (orig?.pagesRead || 0)) {
             const todayStr = getTodayString();
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
-            await handleLogReading(true);
         }
         
         setSelectedBook(p => ({...p, pagesRead: newPages}));
@@ -602,7 +597,6 @@ function BoekenApp() {
         e.preventDefault(); if (!activeUserId || !calendarLogData.bookId) return;
         const book = books.find(b => b.id === calendarLogData.bookId); if (!book) return;
 
-        // Pagina Update checken
         const newPages = parseInt(calendarLogData.pagesRead);
         if (!isNaN(newPages) && newPages !== parseInt(book.pagesRead)) {
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', book.id), { pagesRead: newPages });
@@ -610,7 +604,6 @@ function BoekenApp() {
 
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
         
-        if(calendarLogData.dateStr === getTodayString()) handleLogReading(true);
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
         showToast("Leessessie en voortgang opgeslagen in je kalender!");
     };
@@ -623,34 +616,24 @@ function BoekenApp() {
         });
     };
 
-    const handleLogReading = async (silent = false) => {
+    const handleLogReading = async () => {
         if (!activeUserId) return;
-        const today = new Date().toISOString();
-        let streak = stats.currentStreak || 0;
+        const todayStr = getTodayString();
+        const manualLogId = `${todayStr}_manual`;
         
-        if (isToday(stats.lastReadDate)) { 
-            if (!silent) return; 
-        } else if (isYesterday(stats.lastReadDate)) {
-            streak += 1; 
-        } else {
-            streak = 1; 
-        }
+        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', manualLogId), {
+            date: todayStr,
+            title: "Gelezen (Algemeen)",
+            cover: null,
+            isManual: true
+        }, { merge: true });
         
-        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
+        showToast("Leessessie van vandaag geregistreerd!");
     };
 
     const handleUndoLogReading = async () => {
         if (!activeUserId) return;
         requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
-            let newStreak = Math.max(0, (stats.currentStreak || 1) - 1);
-            let newLastReadDate = null;
-            if (newStreak > 0) {
-                const y = new Date();
-                y.setDate(y.getDate() - 1); 
-                newLastReadDate = y.toISOString();
-            }
-            await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: newStreak, lastReadDate: newLastReadDate }, { merge: true });
-            
             const todayStr = getTodayString();
             const logsToDelete = readingLogs.filter(log => log.date === todayStr);
             for (const log of logsToDelete) {
@@ -742,8 +725,37 @@ function BoekenApp() {
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
-    const hasReadToday = isToday(stats.lastReadDate);
-    const logsByDate = readingLogs.reduce((acc, log) => { if (!acc[log.date]) acc[log.date] = []; acc[log.date].push(log); return acc; }, {});
+    // Dynamische Streak & Logs Berekening
+    const logsByDate = readingLogs.reduce((acc, log) => { 
+        if (!acc[log.date]) acc[log.date] = []; 
+        acc[log.date].push(log); 
+        return acc; 
+    }, {});
+    
+    const todayStr = getTodayString();
+    const hasReadToday = !!logsByDate[todayStr];
+
+    const calculateDynamicStreak = () => {
+        if (Object.keys(logsByDate).length === 0) return 0;
+        let streak = 0;
+        const today = new Date();
+        let checkDate = new Date(today);
+        
+        if (!logsByDate[toDateString(checkDate)]) {
+            checkDate.setDate(checkDate.getDate() - 1);
+            if (!logsByDate[toDateString(checkDate)]) {
+                return 0; 
+            }
+        }
+        
+        while (logsByDate[toDateString(checkDate)]) {
+            streak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+        }
+        return streak;
+    };
+    
+    const currentStreak = calculateDynamicStreak();
 
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
     
@@ -788,7 +800,7 @@ function BoekenApp() {
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = toDateString(new Date(calYear, calMonth, day));
             const dayLogs = logsByDate[dateStr] || [];
-            const isCurrentDay = dateStr === getTodayString();
+            const isCurrentDay = dateStr === todayStr;
             const hasRead = dayLogs.length > 0;
 
             days.push(
@@ -857,6 +869,7 @@ function BoekenApp() {
                         <button onClick={() => setImpersonatedUser(null)} className="bg-black/30 hover:bg-black/50 px-3 py-1 rounded-lg text-xs font-bold transition-colors">Terug</button>
                     </div>
                 )}
+                {/* MENU OP SMARTPHONE */}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between shadow-md">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                     <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
@@ -869,6 +882,7 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
+                {/* INKLAPBAAR MENU OP DESKTOP */}
                 <nav className={`fixed inset-y-0 left-0 z-50 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-all duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} ${isDesktopCollapsed ? 'md:w-20' : 'md:w-72'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
@@ -965,14 +979,15 @@ function BoekenApp() {
                                         </div>
                                         <div className="flex flex-col flex-1 lg:flex-none">
                                             <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                            <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
-                                                {stats.currentStreak} 
-                                                <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                            {/* Streak tekst gigantisch op de computer via md:text-8xl */}
+                                            <p className="text-4xl md:text-8xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                {currentStreak} 
+                                                <span className="text-base md:text-3xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
                                             </p>
                                             
                                             {hasReadToday && (
-                                                <button onClick={() => handleUndoLogReading()} className="hidden lg:flex mt-2 w-fit px-2.5 py-1.5 rounded-lg items-center gap-1.5 font-bold transition-all shadow-sm text-[10px] bg-green-50 text-green-700 border border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200">
-                                                    <CheckCircle2 size={12} className="shrink-0"/>
+                                                <button onClick={() => handleUndoLogReading()} className="hidden lg:flex mt-4 w-fit px-3 py-2 rounded-xl items-center gap-1.5 font-bold transition-all shadow-sm text-xs bg-green-50 text-green-700 border border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200">
+                                                    <CheckCircle2 size={14} className="shrink-0"/>
                                                     <span className="whitespace-nowrap">Gelezen Vandaag</span>
                                                     <span className="text-stone-400 font-normal underline hover:text-red-500 whitespace-nowrap">(Uitvinken)</span>
                                                 </button>
@@ -980,7 +995,7 @@ function BoekenApp() {
                                         </div>
                                     </div>
                                     
-                                    <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200 mx-2 shrink-0"></div>
+                                    <div className="hidden sm:block w-px h-16 md:h-32 bg-stone-200 mx-2 shrink-0"></div>
                                     
                                     <div className="w-full lg:flex-1 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex justify-start lg:justify-center">
                                         {renderWeeklyStreak()}
@@ -1279,24 +1294,18 @@ function BoekenApp() {
                         <div className="p-4 overflow-y-auto hide-scrollbar">
                             
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Camera size={14}/> Magische Kaft Scanner & ISBN</label>
+                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
                                 
-                                <div className="flex gap-2 mb-2">
-                                    <input type="file" accept="image/*" capture="environment" ref={fileInputRefOcr} onChange={handlePhotoScan} className="hidden" />
-                                    <button type="button" onClick={() => fileInputRefOcr.current.click()} disabled={isOcrLoading} className="flex-1 bg-stone-900 text-white px-3 py-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow-md hover:bg-stone-800 transition-colors">
-                                        {isOcrLoading ? <Loader2 size={18} className="animate-spin"/> : <Camera size={18} />}
-                                        {isOcrLoading ? 'Kaft Lezen...' : 'Maak foto van de Kaft'}
-                                    </button>
-                                </div>
-                                
-                                <div className="flex gap-2 mt-3 pt-3 border-t border-amber-200/50">
-                                    <input type="text" placeholder="Of typ ISBN barcode..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
+                                <div className="flex gap-2">
+                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
                                     <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
                                         {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
                                     </button>
+                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center">
+                                        <Camera size={16} />
+                                    </button>
                                 </div>
                                 
-                                {ocrProgress && <p className="text-[10px] text-amber-700 font-bold mt-2 animate-pulse">{ocrProgress}</p>}
                                 {errorMsg && <p className="text-red-600 font-bold text-xs mt-2">{errorMsg}</p>}
                                 {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
                             </div>
@@ -1424,7 +1433,7 @@ function BoekenApp() {
                                                             <span className="font-bold text-sm text-stone-700 truncate">{log.title}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
-                                                            <button type="button" onClick={() => setCalendarLogData({...calendarLogData, bookId: log.bookId, pagesRead: books.find(b => b.id === log.bookId)?.pagesRead || ''})} className="p-2 text-stone-500 hover:bg-stone-200 bg-white rounded-lg border border-stone-200 transition-colors shadow-sm flex-shrink-0"><Edit3 size={16}/></button>
+                                                            <button type="button" onClick={() => setCalendarLogData({...calendarLogData, bookId: log.bookId || '', pagesRead: books.find(b => b.id === log.bookId)?.pagesRead || ''})} className="p-2 text-stone-500 hover:bg-stone-200 bg-white rounded-lg border border-stone-200 transition-colors shadow-sm flex-shrink-0"><Edit3 size={16}/></button>
                                                             <button type="button" onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-500 hover:bg-red-100 bg-white rounded-lg border border-red-100 transition-colors shadow-sm flex-shrink-0"><Trash2 size={16}/></button>
                                                         </div>
                                                     </div>
@@ -1616,7 +1625,6 @@ function BoekenApp() {
                                                         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), {
                                                             date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null
                                                         }, { merge: true });
-                                                        await handleLogReading(true);
                                                     }
                                                     setSelectedBook({...selectedBook, pagesRead: parseInt(endPage)});
                                                     setBookModalTab('overzicht');
