@@ -7,7 +7,7 @@ import {
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
     Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
-    Headphones, Tablet, Play, Square, RotateCcw, Timer, ArrowRight
+    Headphones, Tablet, Play, Square, RotateCcw, Timer
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -772,42 +772,33 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
-                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-8">
-                                    
-                                    {/* Linker Kant: Info + Desktop Knop */}
-                                    <div className="flex flex-col gap-4 w-full lg:w-auto">
-                                        <div className="flex items-center gap-4 justify-between sm:justify-start">
-                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
-                                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={32} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
-                                                    {stats.currentStreak} 
-                                                    <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
-                                                </p>
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
+                                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1">
+                                                    <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                                    {/* Cijfer niet overdreven groot meer */}
+                                                    <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                        {stats.currentStreak} 
+                                                        <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                         
-                                        {/* Desktop Knop (Onder de dagen, verborgen op mobiel) */}
-                                        <div className="hidden lg:block mt-2">
-                                            <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                                {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
-                                            </button>
+                                        <div className="hidden sm:block w-px h-16 md:h-24 bg-stone-200 mx-2 md:mx-6"></div>
+                                        
+                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                                            {renderWeeklyStreak()}
                                         </div>
                                     </div>
-
-                                    <div className="hidden lg:block w-px h-24 bg-stone-200 mx-2"></div>
-
-                                    {/* Midden: Kalender (Vlammetjes) */}
-                                    <div className="w-full lg:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex-1">
-                                        {renderWeeklyStreak()}
-                                    </div>
-
-                                    {/* Mobiele Knop (Onder de kalender, verborgen op computer) */}
-                                    <div className="w-full block lg:hidden mt-2">
-                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
+                                    <div className="w-full lg:w-auto flex justify-end mt-2 lg:mt-0">
+                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full lg:w-auto px-4 py-3 sm:py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm sm:text-base ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] sm:text-xs text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
                                         </button>
                                     </div>
                                 </div>
@@ -1542,6 +1533,9 @@ function BoekenApp() {
 }
 
 function BookList({ books, onSelect, isDragMode, onDragStart }) {
+    // Arrow functie voor ArrowRight icoon aangezien hij niet standaard was geimporteerd bovenin
+    const ArrowRight = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>;
+
     return (
         <React.Fragment>
             {books.map(book => {
