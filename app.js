@@ -411,7 +411,6 @@ function BoekenApp() {
          requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId)); });
     };
 
-    // --- Drag/Drop ---
     const sortedShelves = [...shelves].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     const handleMoveShelf = async (index, direction) => {
@@ -514,7 +513,7 @@ function BoekenApp() {
             let newLastReadDate = null;
             if (newStreak > 0) {
                 const y = new Date();
-                y.setDate(y.getDate() - 1); // Terugzetten naar gisteren
+                y.setDate(y.getDate() - 1); 
                 newLastReadDate = y.toISOString();
             }
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: newStreak, lastReadDate: newLastReadDate }, { merge: true });
@@ -605,7 +604,7 @@ function BoekenApp() {
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
-            // LET OP: Deze weergave is gigantisch op de computer!
+            // GIGANTISCH op computer, compact op mobiel
             days.push(
                 <div key={i} className="flex flex-col items-center gap-1 md:gap-3 min-w-[28px] sm:min-w-[32px] md:min-w-[70px]">
                     <div className={`w-7 h-7 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
@@ -631,6 +630,7 @@ function BoekenApp() {
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
+            {/* Header Mobiel & Admin */}
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {impersonatedUser && (
                     <div className="bg-red-600 text-white px-4 py-2 flex justify-between items-center shadow-md animate-pulse">
@@ -639,7 +639,7 @@ function BoekenApp() {
                     </div>
                 )}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
-                    {/* Spatie gefixt! Nu staat er BoekenPlank zonder spatie */}
+                    {/* ZONDER SPATIE BOEKENPLANK */}
                     <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                 </div>
@@ -650,6 +650,7 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
+                {/* Zijbalk Menu */}
                 <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
@@ -686,6 +687,7 @@ function BoekenApp() {
                     </div>
                 </nav>
 
+                {/* Hoofd Content Area */}
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
@@ -741,7 +743,7 @@ function BoekenApp() {
                             </div>
                         )}
 
-                        {}
+                        {/* Schappen met Kleur en Inklappen */}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -1053,6 +1055,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {}
             {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -1110,7 +1113,6 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
@@ -1255,6 +1257,7 @@ function BoekenApp() {
                                                                 {note.type === 'quote' ? (
                                                                     <>
                                                                         <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
+                                                                        {/* Knop voor Screenshot Quote Generator */}
                                                                         <button onClick={() => setQuoteCard({text: note.text, author: selectedBook.author, title: selectedBook.title, cover: selectedBook.cover})} className="mt-3 ml-6 bg-stone-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-amber-500 transition-colors"><Camera size={12}/> Mooie Quote-kaart maken</button>
                                                                     </>
                                                                 ) : (
@@ -1308,17 +1311,20 @@ function BoekenApp() {
             )}
 
             {}
+            {/* Mooie Quote-Kaart Screenshot Modal */}
             {quoteCard && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
                     
-                    <div id="quote-capture-area" className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800 bg-stone-900">
+                    <div className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800">
                         {/* Background */}
-                        {quoteCard.cover && (
+                        {quoteCard.cover ? (
                             <>
                                 <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110" style={{ backgroundImage: `url(${quoteCard.cover})` }}></div>
                                 <div className="absolute inset-0 bg-gradient-to-b from-stone-900/60 via-stone-900/80 to-stone-900"></div>
                             </>
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-stone-800 to-black"></div>
                         )}
                         
                         {/* Content */}
@@ -1338,6 +1344,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Add Shelf Modal met Kleuren */}
             {isShelfModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1352,7 +1359,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 border-stone-200 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'hover:scale-110 hover:border-stone-300'}`}></button>
+                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
                             
@@ -1365,6 +1372,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Edit Shelf Modal met Kleuren */}
             {editShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1379,7 +1387,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 border-stone-200 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'hover:scale-110 hover:border-stone-300'}`}></button>
+                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
 
@@ -1389,6 +1397,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
