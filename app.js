@@ -68,6 +68,7 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "25.1.0", date: "Oktober 2026", changes: ["Admin balk geoptimaliseerd voor mobiel: knoppen staan nu perfect op één lijn.", "Het bewerken en aanmaken van schappen volledig hersteld inclusief kleuren, beschrijving en tags."] },
     { version: "25.0.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
     { version: "24.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] },
     { version: "23.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu volledige Schappen (inclusief alle boeken) én Bibliotheken met één klik pushen naar andere gebruikers!"] },
@@ -1134,11 +1135,11 @@ function BoekenApp() {
             
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {userData && userData.role === 'admin' && (
-                    <div className="bg-stone-900 border-b border-stone-700 text-white px-4 py-2 flex flex-col sm:flex-row justify-between items-center z-50 text-xs sm:text-sm">
-                        <div className="flex items-center gap-2 font-bold mb-2 sm:mb-0 text-amber-500">
+                    <div className="bg-stone-900 border-b border-stone-700 text-white px-4 py-2 flex flex-row justify-between items-center z-50 text-xs sm:text-sm">
+                        <div className="hidden sm:flex items-center gap-2 font-bold text-amber-500">
                             <Shield size={16} /> Systeem Admin Actief
                         </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                             <span className="text-stone-400 whitespace-nowrap">Huidige weergave:</span>
                             <select
                                 value={activeUserId || user.uid}
@@ -1818,7 +1819,6 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {}
             {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
@@ -2496,6 +2496,80 @@ function BoekenApp() {
                                 <button type="submit" disabled={shareShelfData.loading} className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 justify-center">
                                     {shareShelfData.loading ? 'Bezig...' : 'Deel Schap'}
                                 </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Shelf Modal (Compleet uitgeschreven) */}
+            {isShelfModalOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0">
+                            <h3 className="text-2xl font-black text-stone-800">Nieuw Schap</h3>
+                        </div>
+                        <form onSubmit={handleAddShelf} className="p-6 overflow-y-auto hide-scrollbar flex flex-col gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Naam van het schap *</label>
+                                <input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors" placeholder="Bijv. Fantasy" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
+                                <textarea value={newShelf.description} onChange={e => setNewShelf({...newShelf, description: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors resize-none h-20" placeholder="Korte omschrijving..."></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Tags (komma gescheiden)</label>
+                                <input type="text" value={newShelf.tags} onChange={e => setNewShelf({...newShelf, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors" placeholder="Spanning, Magie, Favorieten" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-2">Kleur van het schap</label>
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 hide-scrollbar">
+                                    {SHELF_COLORS.map(c => (
+                                        <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-4">
+                                <button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl transition-colors">Annuleren</button>
+                                <button type="submit" disabled={!newShelf.name} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 transition-colors disabled:opacity-50">Aanmaken</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Shelf Modal (Compleet uitgeschreven) */}
+            {editShelfData.isOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0">
+                            <h3 className="text-2xl font-black text-stone-800">Schap Bewerken</h3>
+                        </div>
+                        <form onSubmit={handleUpdateShelf} className="p-6 overflow-y-auto hide-scrollbar flex flex-col gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Naam van het schap *</label>
+                                <input type="text" required value={editShelfData.name} onChange={e => setEditShelfData({...editShelfData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
+                                <textarea value={editShelfData.description} onChange={e => setEditShelfData({...editShelfData, description: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors resize-none h-20"></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-1">Tags (komma gescheiden)</label>
+                                <input type="text" value={editShelfData.tags} onChange={e => setEditShelfData({...editShelfData, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 focus:bg-white focus:border-amber-400 outline-none transition-colors" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-stone-700 mb-2">Kleur van het schap</label>
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 hide-scrollbar">
+                                    {SHELF_COLORS.map(c => (
+                                        <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-4">
+                                <button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '', _ownerUid: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl transition-colors">Annuleren</button>
+                                <button type="submit" disabled={!editShelfData.name} className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg hover:bg-stone-800 transition-colors">Opslaan</button>
                             </div>
                         </form>
                     </div>
