@@ -7,7 +7,7 @@ import {
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
     Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
-    Headphones, Tablet, Play, Square, Upload, FileUp, Filter
+    Headphones, Tablet, Play, Square, Upload, FileUp, Filter, Copy
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import Papa from 'https://esm.sh/papaparse@5.4.1';
@@ -15,7 +15,7 @@ import Tesseract from 'https://esm.sh/tesseract.js@5.0.5';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const firebaseConfig = {
     apiKey: "AIzaSyCVlFFp4QiianYl27RSGKjkA0HDzUyu1Q4",
@@ -31,12 +31,13 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
-// Datum Hulpfuncties
+const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
+const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
+const getTodayString = () => new Date().toISOString().split('T')[0]; 
 const toDateString = (dateObj) => {
     const d = new Date(dateObj);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-const getTodayString = () => toDateString(new Date()); 
 
 const SHELF_COLORS = [
     'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
@@ -67,11 +68,11 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "19.0.0", date: "Oktober 2026", changes: ["Nieuwe functie: 'Ontdekken'. Bekijk boeken van andere gebruikers en kopieer ze direct naar je eigen schappen!", "Privacy instellingen toegevoegd: Bepaal zelf wie jouw boeken mag inzien en kopiëren (Admins hebben altijd toegang)."] },
     { version: "18.1.0", date: "Oktober 2026", changes: ["Dynamische streakberekening ingebouwd! De lees-streak kijkt nu real-time naar je kalender en is altijd perfect in sync.", "Tijdzone en datum berekeningen gefixt"] },
     { version: "18.0.0", date: "Oktober 2026", changes: ["Je kunt nu in de kalender achteraf de gelezen pagina's makkelijk aanpassen (via het bewerk-icoontje)", "Tags & Genres kunnen nu ook aan de Schappen worden toegevoegd!"] },
     { version: "17.0.0", date: "Oktober 2026", changes: ["Menu inklapbaar gemaakt op desktop voor meer werkruimte", "Op smartphone is de menu-knop naar de linkerkant verplaatst", "Pagina's (en minuten) kunnen nu direct worden bewerkt bij het toevoegen van een log aan de kalender!"] },
     { version: "16.2.0", date: "Oktober 2026", changes: ["Je kunt nu boeken achteraf VERWIJDEREN uit de maandkalender!"] },
-    { version: "16.1.0", date: "Oktober 2026", changes: ["Schappen zijn nu standaard handig ingeklapt", "Grote 'Gelezen!' knop verwijderd, minimalistische UI geperfectioneerd"] },
     { version: "16.0.0", date: "Oktober 2026", changes: ["📸 AI Kaft Scanner toegevoegd!", "🔤 Sortering en Filter knop bovenaan toegevoegd."] }
 ];
 
@@ -192,6 +193,13 @@ function BoekenApp() {
     const scannerRef = useRef(null);
     const searchTimeoutRef = useRef(null);
 
+    // Nieuwe State voor Community / Ontdekken
+    const [allowEmailInput, setAllowEmailInput] = useState('');
+    const [viewingPublicUser, setViewingPublicUser] = useState(null);
+    const [publicBooks, setPublicBooks] = useState([]);
+    const [publicShelves, setPublicShelves] = useState([]);
+    const [copyBookData, setCopyBookData] = useState({ isOpen: false, book: null, targetShelfId: '' });
+
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
@@ -221,14 +229,24 @@ function BoekenApp() {
         return () => { unsubBooks(); unsubShelves(); unsubLogs(); };
     }, [activeUserId]);
 
+    // Ophalen van Public Data als we een user bekijken in 'Ontdekken'
     useEffect(() => {
-        if (userData && userData.role === 'admin') {
+        if (!viewingPublicUser) {
+            setPublicBooks([]); setPublicShelves([]); return;
+        }
+        const unsubPubBooks = onSnapshot(collection(db, 'artifacts', appId, 'users', viewingPublicUser.uid, 'books'), s => setPublicBooks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        const unsubPubShelves = onSnapshot(collection(db, 'artifacts', appId, 'users', viewingPublicUser.uid, 'shelves'), s => setPublicShelves(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        return () => { unsubPubBooks(); unsubPubShelves(); };
+    }, [viewingPublicUser]);
+
+    useEffect(() => {
+        if (user) {
             const unsubUsers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), s => setAllUsers(s.docs.map(d => ({ uid: d.id, ...d.data() }))), console.error);
             return () => unsubUsers();
         } else {
-            setAllUsers([]); if(impersonatedUser) setImpersonatedUser(null);
+            setAllUsers([]);
         }
-    }, [userData]);
+    }, [user]);
 
     const handleLogin = async (e) => {
         e.preventDefault(); setLoading(true);
@@ -241,7 +259,7 @@ function BoekenApp() {
         let isAdmin = false;
         try { const usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); if (usersSnap.empty) isAdmin = true; } catch (e) {}
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-        await setDoc(userRef, { name: profileForm.name, email: profileForm.email, role: isAdmin ? 'admin' : 'user', createdAt: new Date().toISOString() });
+        await setDoc(userRef, { name: profileForm.name, email: profileForm.email.toLowerCase(), role: isAdmin ? 'admin' : 'user', allowedCopiers: [], createdAt: new Date().toISOString() });
     };
 
     const handleLogout = async () => { await signOut(auth); setActiveTab('alle'); };
@@ -252,6 +270,64 @@ function BoekenApp() {
     const showToast = (message, type = 'success') => {
         setToast({ show: true, message, type });
         setTimeout(() => setToast(p => ({ ...p, show: false })), 3000);
+    };
+
+    // Privacy & Toegang Functies
+    const handleAddAllowedUser = async (e) => {
+        e.preventDefault();
+        if (!allowEmailInput || !userData) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
+                allowedCopiers: arrayUnion(allowEmailInput.toLowerCase())
+            });
+            setAllowEmailInput('');
+            showToast("Gebruiker toegevoegd aan je toegangslijst!");
+        } catch (err) { showToast("Fout bij toevoegen", "error"); }
+    };
+
+    const handleRemoveAllowedUser = async (emailToRemove) => {
+        if (!userData) return;
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
+                allowedCopiers: arrayRemove(emailToRemove)
+            });
+            showToast("Toegang ingetrokken.", "info");
+        } catch (err) {}
+    };
+
+    // Kopieer functionaliteit (Ontdekken)
+    const handleCopyBookConfirm = async (e) => {
+        e.preventDefault();
+        if (!user || !copyBookData.book || !copyBookData.targetShelfId) return;
+        
+        const bookToCopy = copyBookData.book;
+        const newBookData = {
+            title: bookToCopy.title || 'Onbekend',
+            author: bookToCopy.author || 'Onbekend',
+            cover: bookToCopy.cover || '',
+            isbn: bookToCopy.isbn || '',
+            totalPages: parseInt(bookToCopy.totalPages) || 0,
+            tags: bookToCopy.tags || '',
+            format: bookToCopy.format || 'fysiek',
+            seriesName: bookToCopy.seriesName || '',
+            seriesNumber: bookToCopy.seriesNumber || '',
+            shelfId: copyBookData.targetShelfId,
+            pagesRead: 0,
+            rating: 0,
+            review: '',
+            notes: [],
+            lentTo: null,
+            lentDate: null,
+            addedAt: new Date().toISOString()
+        };
+
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'books'), newBookData);
+            setCopyBookData({ isOpen: false, book: null, targetShelfId: '' });
+            showToast(`"${newBookData.title}" is gekopieerd naar je bibliotheek!`);
+        } catch (err) {
+            showToast("Er ging iets mis met kopiëren.", "error");
+        }
     };
 
     const handlePhotoScan = async (e) => {
@@ -554,9 +630,8 @@ function BoekenApp() {
         e.preventDefault();
         setShareShelfData(p => ({...p, loading: true, msg: ''}));
         try {
-            const usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
             let targetUid = null;
-            usersSnap.forEach(d => { if (d.data().email.toLowerCase() === shareShelfData.email.toLowerCase()) targetUid = d.id; });
+            allUsers.forEach(d => { if (d.email.toLowerCase() === shareShelfData.email.toLowerCase()) targetUid = d.uid; });
             if (!targetUid) return setShareShelfData(p => ({...p, loading: false, msg: 'Gebruiker niet gevonden in het systeem.'}));
             if (targetUid === activeUserId) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
             const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
@@ -614,21 +689,6 @@ function BoekenApp() {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', logId));
             showToast("Log succesvol verwijderd uit de kalender.", "info");
         });
-    };
-
-    const handleLogReading = async () => {
-        if (!activeUserId) return;
-        const todayStr = getTodayString();
-        const manualLogId = `${todayStr}_manual`;
-        
-        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', manualLogId), {
-            date: todayStr,
-            title: "Gelezen (Algemeen)",
-            cover: null,
-            isManual: true
-        }, { merge: true });
-        
-        showToast("Leessessie van vandaag geregistreerd!");
     };
 
     const handleUndoLogReading = async () => {
@@ -718,14 +778,13 @@ function BoekenApp() {
         event.target.value = null;
     };
 
-    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); };
+    const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); setViewingPublicUser(null); };
 
     if (loading) return <div className="flex h-screen items-center justify-center bg-stone-100"><div className="animate-spin text-amber-600"><BookOpen size={48} /></div></div>;
     if (dbError) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border-2 border-red-500"><h3>Database Fout</h3><button onClick={() => window.location.reload()} className="mt-4 bg-stone-900 text-white font-bold py-2 px-4 rounded-xl">Herladen</button></div></div>;
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
-    // Dynamische Streak & Logs Berekening
     const logsByDate = readingLogs.reduce((acc, log) => { 
         if (!acc[log.date]) acc[log.date] = []; 
         acc[log.date].push(log); 
@@ -859,6 +918,13 @@ function BoekenApp() {
         );
     };
 
+    // Filter community users (Zien wij als we in de Ontdekken tab zijn)
+    const displayCommunityUsers = allUsers.filter(u => {
+        if (u.uid === user.uid) return false; 
+        if (userData.role === 'admin') return true; 
+        return u.allowedCopiers && u.allowedCopiers.includes(userData.email.toLowerCase());
+    });
+
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
@@ -944,10 +1010,16 @@ function BoekenApp() {
                                 {!isDesktopCollapsed && <span className="whitespace-nowrap">Kalender</span>}
                             </button>
 
+                            {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Community</p> : <div className="h-4"></div>}
+                            <button onClick={() => switchTab('ontdekken')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'ontdekken' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Ontdekken" : ""}>
+                                <Users size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Ontdekken</span>}
+                            </button>
+
                             {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p> : <div className="h-4"></div>}
                             <button onClick={() => switchTab('beheer')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Schappen Beheren" : ""}>
                                 <Settings size={20} className="flex-shrink-0"/>
-                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Schappen Beheren</span>}
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Beheer & Instellingen</span>}
                             </button>
                             <button onClick={() => switchTab('changelog')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Versiegeschiedenis" : ""}>
                                 <History size={20} className="flex-shrink-0"/>
@@ -979,7 +1051,6 @@ function BoekenApp() {
                                         </div>
                                         <div className="flex flex-col flex-1 lg:flex-none">
                                             <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                            {/* Streak tekst gigantisch op de computer via md:text-8xl */}
                                             <p className="text-4xl md:text-8xl font-black text-stone-800 leading-none tracking-tighter mt-1">
                                                 {currentStreak} 
                                                 <span className="text-base md:text-3xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
@@ -1139,16 +1210,132 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {activeTab === 'ontdekken' && (
+                            <div className="max-w-6xl mx-auto space-y-6">
+                                {!viewingPublicUser ? (
+                                    <>
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
+                                            <div>
+                                                <h2 className="text-3xl font-black text-stone-800 flex items-center gap-3"><Users className="text-amber-500"/> Ontdekken</h2>
+                                                <p className="text-stone-500 font-medium">Bekijk boeken van andere gebruikers en kopieer ze naar jouw eigen schappen.</p>
+                                            </div>
+                                        </div>
+                                        
+                                        {displayCommunityUsers.length === 0 ? (
+                                            <div className="bg-white rounded-3xl p-10 shadow-sm border border-stone-200 text-center">
+                                                <Users size={48} className="text-stone-300 mx-auto mb-4"/>
+                                                <h3 className="text-xl font-bold text-stone-700 mb-2">Geen gebruikers gevonden</h3>
+                                                <p className="text-stone-500">Andere gebruikers moeten jouw e-mailadres toevoegen in hun privacy-instellingen voordat je hun boeken kunt bekijken.</p>
+                                                {userData.role === 'admin' && <p className="text-amber-600 font-bold mt-2">Als Admin zie je normaal iedereen, maar blijkbaar is er nog niemand anders in de app.</p>}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                                {displayCommunityUsers.map(u => (
+                                                    <div key={u.uid} onClick={() => setViewingPublicUser(u)} className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-stone-200 to-stone-300 flex items-center justify-center font-black text-xl text-stone-600 group-hover:scale-110 transition-transform">
+                                                                {u.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-lg text-stone-800">{u.name}</h4>
+                                                                <p className="text-xs text-stone-500">Klik om boeken te bekijken</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-stone-200 flex justify-between items-center mb-6">
+                                            <div className="flex items-center gap-4">
+                                                <button onClick={() => setViewingPublicUser(null)} className="p-2 bg-stone-100 hover:bg-stone-200 rounded-full transition"><ChevronLeft size={24}/></button>
+                                                <div>
+                                                    <h2 className="text-2xl font-black text-stone-800">Bibliotheek van {viewingPublicUser.name}</h2>
+                                                    <p className="text-sm text-stone-500">Kies een boek om te kopiëren naar jouw eigen profiel.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-8">
+                                            {publicShelves.length === 0 ? (
+                                                <div className="text-center py-10 bg-white rounded-3xl border border-stone-200">
+                                                    <p className="text-stone-500 font-bold">Deze gebruiker heeft nog geen schappen.</p>
+                                                </div>
+                                            ) : (
+                                                publicShelves.sort((a,b) => (a.order||0)-(b.order||0)).map(shelf => {
+                                                    const shelfBooks = publicBooks.filter(b => b.shelfId === shelf.id);
+                                                    if (shelfBooks.length === 0) return null;
+                                                    return (
+                                                        <div key={shelf.id} className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200 relative overflow-hidden">
+                                                            <div className={`absolute top-0 left-0 w-2 h-full ${shelf.color || 'bg-amber-500'}`}></div>
+                                                            <div className="mb-4 border-b border-stone-100 pb-2 pl-2">
+                                                                <h3 className="text-2xl font-black flex items-center gap-3">{shelf.name} <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                                                                {/* Public Book List Component (Reusing standard component but intercepting click) */}
+                                                                {shelfBooks.map(book => (
+                                                                    <div key={book.id} className="group relative flex flex-col cursor-pointer transition-all hover:-translate-y-2" onClick={() => setCopyBookData({ isOpen: true, book: book, targetShelfId: '' })}>
+                                                                        <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200">
+                                                                            {book.cover ? <img src={book.cover} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br"><Book className="text-stone-300"/></div>}
+                                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
+                                                                                <button className="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-md flex items-center gap-1"><Copy size={12}/> Kopieer</button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <h4 className="font-bold text-[10px] sm:text-xs text-stone-800 leading-tight line-clamp-2">{book.title}</h4>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         {activeTab === 'beheer' && (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
                                     <div>
-                                        <h2 className="text-3xl font-black text-stone-800">Beheer Schappen</h2>
-                                        <p className="text-stone-500 font-medium">Beheer je lijsten en pas de volgorde aan.</p>
+                                        <h2 className="text-3xl font-black text-stone-800">Beheer & Instellingen</h2>
+                                        <p className="text-stone-500 font-medium">Beheer je lijsten en privacy-instellingen.</p>
                                     </div>
                                     <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg w-full sm:w-auto justify-center"><Plus size={20} /> Nieuw Schap</button>
                                 </div>
                                 
+                                {/* Privacy & Vrienden Instellingen */}
+                                <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="bg-blue-100 p-3 rounded-2xl text-blue-600"><Users size={24}/></div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-stone-800">Vrienden & Toegang (Kopiëren)</h3>
+                                            <p className="text-sm text-stone-500">Wie mag jouw boeken zien en kopiëren in het tabblad 'Ontdekken'?</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <form onSubmit={handleAddAllowedUser} className="flex gap-2 mb-4">
+                                        <input type="email" required value={allowEmailInput} onChange={e => setAllowEmailInput(e.target.value)} placeholder="E-mailadres van vriend..." className="flex-1 border-2 border-stone-200 rounded-xl px-4 py-2 bg-stone-50 outline-none focus:border-blue-400 font-medium"/>
+                                        <button type="submit" className="bg-stone-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-stone-800 shadow-sm">Toestaan</button>
+                                    </form>
+
+                                    <div className="space-y-2">
+                                        {(!userData.allowedCopiers || userData.allowedCopiers.length === 0) ? (
+                                            <p className="text-sm text-stone-400 font-medium p-3 border border-stone-100 rounded-xl bg-stone-50">Niemand heeft momenteel toegang tot jouw boeken.</p>
+                                        ) : (
+                                            userData.allowedCopiers.map((email, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-stone-50 border border-stone-200 p-3 rounded-xl">
+                                                    <span className="font-bold text-stone-700">{email}</span>
+                                                    <button onClick={() => handleRemoveAllowedUser(email)} className="text-xs text-red-500 font-bold hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"><X size={14}/> Verwijder</button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div>
                                         <h3 className="text-lg font-black flex items-center gap-2 text-stone-800"><Upload size={18} className="text-amber-500"/> CSV Importeren</h3>
@@ -1162,6 +1349,7 @@ function BoekenApp() {
                                 </div>
 
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-md border border-stone-200/60">
+                                    <h3 className="text-lg font-black text-stone-800 mb-4 pl-2">Mijn Schappen</h3>
                                     <div className="space-y-4">
                                         {sortedShelves.map((shelf, index) => (
                                             <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 pl-6 bg-stone-50 rounded-2xl border border-stone-200 gap-4 transition-all hover:bg-stone-100 relative overflow-hidden">
@@ -1188,14 +1376,14 @@ function BoekenApp() {
                                                         <button onClick={() => handleMoveShelf(index, -1)} disabled={index === 0} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowUp size={16}/></button>
                                                         <button onClick={() => handleMoveShelf(index, 1)} disabled={index === sortedShelves.length - 1} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowDown size={16}/></button>
                                                     </div>
-                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel</button>
+                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel / Push</button>
                                                     <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '', color: shelf.color || 'bg-amber-500', tags: shelf.tags || '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
                                                     <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                 </div>
                                                 
                                                 {shelf.sharedWith && shelf.sharedWith.length > 0 && (
                                                     <div className="w-full mt-2 pt-3 border-t border-stone-200">
-                                                        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Gedeeld met:</p>
+                                                        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Gepushed naar:</p>
                                                         <div className="space-y-2">
                                                             {shelf.sharedWith.map((share, idx) => (
                                                                 <div key={idx} className="flex justify-between items-center bg-white p-2 px-3 rounded-lg border border-stone-200">
@@ -1294,18 +1482,24 @@ function BoekenApp() {
                         <div className="p-4 overflow-y-auto hide-scrollbar">
                             
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
+                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Camera size={14}/> Magische Kaft Scanner & ISBN</label>
                                 
-                                <div className="flex gap-2">
-                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
-                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
-                                        {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
-                                    </button>
-                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center">
-                                        <Camera size={16} />
+                                <div className="flex gap-2 mb-2">
+                                    <input type="file" accept="image/*" capture="environment" ref={fileInputRefOcr} onChange={handlePhotoScan} className="hidden" />
+                                    <button type="button" onClick={() => fileInputRefOcr.current.click()} disabled={isOcrLoading} className="flex-1 bg-stone-900 text-white px-3 py-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow-md hover:bg-stone-800 transition-colors">
+                                        {isOcrLoading ? <Loader2 size={18} className="animate-spin"/> : <Camera size={18} />}
+                                        {isOcrLoading ? 'Kaft Lezen...' : 'Maak foto van de Kaft'}
                                     </button>
                                 </div>
                                 
+                                <div className="flex gap-2 mt-3 pt-3 border-t border-amber-200/50">
+                                    <input type="text" placeholder="Of typ ISBN barcode..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
+                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
+                                        {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
+                                    </button>
+                                </div>
+                                
+                                {ocrProgress && <p className="text-[10px] text-amber-700 font-bold mt-2 animate-pulse">{ocrProgress}</p>}
                                 {errorMsg && <p className="text-red-600 font-bold text-xs mt-2">{errorMsg}</p>}
                                 {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
                             </div>
@@ -1409,6 +1603,39 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Modal voor Kopiëren vanuit Ontdekken */}
+            {copyBookData.isOpen && copyBookData.book && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100">
+                            <h3 className="text-xl font-black flex items-center gap-2"><Copy size={20} className="text-amber-500"/> Boek Kopiëren</h3>
+                            <p className="text-sm text-stone-500 mt-1">Voeg "{copyBookData.book.title}" toe aan je eigen bibliotheek.</p>
+                        </div>
+                        <form onSubmit={handleCopyBookConfirm} className="p-6">
+                            <div className="flex gap-4 items-center mb-6">
+                                {copyBookData.book.cover ? <img src={copyBookData.book.cover} className="w-16 h-24 object-cover rounded shadow-md" /> : <div className="w-16 h-24 bg-stone-200 flex items-center justify-center rounded shadow-md"><Book className="text-stone-400"/></div>}
+                                <div>
+                                    <p className="font-bold text-stone-800">{copyBookData.book.title}</p>
+                                    <p className="text-sm text-stone-500">{copyBookData.book.author}</p>
+                                </div>
+                            </div>
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-stone-700 mb-2">In welk van JOUW schappen wil je dit zetten?</label>
+                                <select required value={copyBookData.targetShelfId} onChange={e => setCopyBookData({...copyBookData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
+                                    <option value="" disabled>Selecteer een schap...</option>
+                                    <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
+                                    {sortedShelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={() => setCopyBookData({ isOpen: false, book: null, targetShelfId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" disabled={!copyBookData.targetShelfId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Kopieer Boek</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Retroactive Calendar Log Modal - INCLUSIEF BEWERKEN */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -1481,13 +1708,13 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Share Shelf Modal */}
+            {/* Share Shelf Modal (Push) */}
             {shareShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
                         <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Delen</h3>
-                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" naar een andere gebruiker.</p>
+                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Push / Delen</h3>
+                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" geforceerd naar een andere gebruiker.</p>
                         </div>
                         <form onSubmit={handleShareShelfSubmit} className="p-6">
                             <div className="mb-5">
