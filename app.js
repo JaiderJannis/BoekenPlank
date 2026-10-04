@@ -68,10 +68,11 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "16.2.0", date: "Oktober 2026", changes: ["Je kunt nu boeken achteraf VERWIJDEREN uit de maandkalender!"] },
     { version: "16.1.0", date: "Oktober 2026", changes: ["Schappen zijn nu standaard handig ingeklapt", "Grote 'Gelezen!' knop verwijderd, minimalistische UI geperfectioneerd"] },
     { version: "16.0.0", date: "Oktober 2026", changes: ["📸 AI Kaft Scanner toegevoegd! Maak een foto van je boek en de app herkent de titel via tekstherkenning.", "🔤 Sortering (A-Z, Z-A, Nieuwste) en Filter knop bovenaan toegevoegd.", "Oude trage barcode-scanner is verwijderd."] },
     { version: "15.1.0", date: "Oktober 2026", changes: ["Standaardweergave aangepast naar 'Alle Boeken' in plaats van schappen"] },
-    { version: "15.0.0", date: "Oktober 2026", changes: ["⏱️ Ingebouwde Leestimer (Stopwatch) toegevoegd", "🎧 Formaat Selectie: Fysiek, E-Book en Audioboek (met minuten i.p.v. pagina's)", "📚 Boekenreeksen: Reeks en deelnummer toevoegen"] }
+    { version: "15.0.0", date: "Oktober 2026", changes: ["⏱️ Ingebouwde Leestimer (Stopwatch) toegevoegd", "🎧 Formaat Selectie: Fysiek, E-Book en Audioboek", "📚 Boekenreeksen: Reeks en deelnummer toevoegen"] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -144,7 +145,7 @@ function BoekenApp() {
     const [sortOption, setSortOption] = useState('az'); 
 
     const [activeTab, setActiveTab] = useState('alle');
-    const [expandedShelves, setExpandedShelves] = useState([]); // Nieuwe state: standaard ingeklapt
+    const [expandedShelves, setExpandedShelves] = useState([]); // Schappen standaard ingeklapt
     
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
@@ -604,6 +605,15 @@ function BoekenApp() {
         showToast("Leessessie toegevoegd aan je kalender!");
     };
 
+    // NIEUW: Log verwijderen uit de kalender
+    const handleDeleteLog = async (logId) => {
+        if (!activeUserId) return;
+        requestConfirm("Weet je zeker dat je dit boek van deze dag wilt verwijderen?", async () => {
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', logId));
+            showToast("Log succesvol verwijderd uit de kalender.", "info");
+        });
+    };
+
     const handleLogReading = async (silent = false) => {
         if (!activeUserId) return;
         const today = new Date().toISOString();
@@ -966,7 +976,6 @@ function BoekenApp() {
                                     <div className="text-center py-16 bg-white rounded-3xl border-2 border-stone-200 border-dashed"><Library className="text-stone-400 mx-auto mb-4" size={48}/><h3 className="text-2xl font-bold mb-4">Geen schappen</h3><button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button></div>
                                 ) : (
                                     sortedShelves.map(shelf => {
-                                        // Aangepaste logica: isExpanded ipv isCollapsed (startwaarde [] = alles ingeklapt)
                                         const isExpanded = expandedShelves.includes(shelf.id);
                                         const shelfBooks = processedBooks.filter(b => b.shelfId === shelf.id);
                                         if (searchQuery && shelfBooks.length === 0) return null;
@@ -1199,7 +1208,6 @@ function BoekenApp() {
                         </div>
                         <div className="p-4 overflow-y-auto hide-scrollbar">
                             
-                            {/* Magische Scanner UI */}
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                                 <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Camera size={14}/> Magische Kaft Scanner & ISBN</label>
                                 
@@ -1322,29 +1330,57 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Retroactive Calendar Log Modal */}
+            {/* Retroactive Calendar Log Modal - NU MET DELETE FUNCTIE */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-xl font-black flex items-center gap-2"><CalendarDays size={20} className="text-amber-500"/> Logboek toevoegen</h3>
-                            <p className="text-sm text-stone-500 mt-1">Gelezen op: {calendarLogData.dateStr}</p>
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0">
+                            <h3 className="text-xl font-black flex items-center gap-2"><CalendarDays size={20} className="text-amber-500"/> Kalender Logboek</h3>
+                            <p className="text-sm text-stone-500 mt-1">Datum: {calendarLogData.dateStr}</p>
                         </div>
-                        <form onSubmit={handleRetroactiveLog} className="p-6">
-                            {books.length === 0 ? <p className="text-red-500 mb-4 font-bold">Je hebt nog geen boeken in je bibliotheek.</p> : (
-                                <div className="mb-6">
-                                    <label className="block text-sm font-bold text-stone-700 mb-2">Welk boek heb je gelezen?</label>
-                                    <select required value={calendarLogData.bookId} onChange={e => setCalendarLogData({...calendarLogData, bookId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
-                                        <option value="" disabled>Selecteer een boek...</option>
-                                        {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
-                                    </select>
+                        
+                        <div className="p-6 overflow-y-auto hide-scrollbar">
+                            {/* Bestaande logs voor deze datum weergave */}
+                            {(() => {
+                                const dayLogs = readingLogs.filter(l => l.date === calendarLogData.dateStr);
+                                if (dayLogs.length > 0) {
+                                    return (
+                                        <div className="mb-6 pb-6 border-b border-stone-100">
+                                            <label className="block text-sm font-bold text-stone-700 mb-3">Gelezen op deze dag:</label>
+                                            <div className="space-y-2">
+                                                {dayLogs.map(log => (
+                                                    <div key={log.id} className="flex justify-between items-center bg-stone-50 p-2 pr-3 rounded-xl border border-stone-200">
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            {log.cover ? <img src={log.cover} className="w-8 h-10 object-cover rounded shadow-sm flex-shrink-0" /> : <div className="w-8 h-10 bg-white border border-stone-200 flex items-center justify-center rounded shadow-sm flex-shrink-0"><Book size={12} className="text-stone-300"/></div>}
+                                                            <span className="font-bold text-sm text-stone-700 truncate">{log.title}</span>
+                                                        </div>
+                                                        <button type="button" onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-500 hover:bg-red-100 bg-white rounded-lg border border-red-100 transition-colors shadow-sm flex-shrink-0"><Trash2 size={16}/></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
+
+                            {/* Nieuw boek toevoegen formulier */}
+                            <form onSubmit={handleRetroactiveLog}>
+                                {books.length === 0 ? <p className="text-red-500 font-bold mb-4">Je hebt nog geen boeken in je bibliotheek.</p> : (
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-bold text-stone-700 mb-2">Nieuw boek toevoegen aan deze dag:</label>
+                                        <select required value={calendarLogData.bookId} onChange={e => setCalendarLogData({...calendarLogData, bookId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
+                                            <option value="" disabled>Selecteer een boek...</option>
+                                            {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button type="button" onClick={() => setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Sluiten</button>
+                                    <button type="submit" disabled={books.length === 0 || !calendarLogData.bookId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Log Opslaan</button>
                                 </div>
-                            )}
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
-                                <button type="submit" disabled={books.length === 0} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Log Opslaan</button>
-                            </div>
-                        </form>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1374,9 +1410,9 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Confirm Dialog Modal */}
+            {/* Confirm Dialog Modal - Z-INDEX 130 ZODAT HIJ OVER DE KALENDER MODAL VALT */}
             {confirmDialog.isOpen && (
-                <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
+                <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[130] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
             {/* Book Details & Tabs Modal */}
@@ -1481,6 +1517,7 @@ function BoekenApp() {
                                     </form>
                                 ) : (
                                     <>
+                                        {/* TAB: LEESSESSIE */}
                                         {bookModalTab === 'leessessie' && (
                                             <ReadingTimer 
                                                 book={selectedBook} 
@@ -1500,6 +1537,7 @@ function BoekenApp() {
                                             />
                                         )}
 
+                                        {/* TAB: OVERZICHT */}
                                         {bookModalTab === 'overzicht' && (
                                             <div className="mt-auto space-y-4 flex-1 flex flex-col">
                                                 {selectedBook.lentTo && (
@@ -1539,6 +1577,7 @@ function BoekenApp() {
                                             </div>
                                         )}
 
+                                        {/* TAB: NOTITIES & QUOTES */}
                                         {bookModalTab === 'notities' && (
                                             <div className="flex-1 flex flex-col">
                                                 <form onSubmit={handleAddNote} className="mb-6 bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex-shrink-0">
@@ -1575,6 +1614,7 @@ function BoekenApp() {
                                             </div>
                                         )}
 
+                                        {/* TAB: UITLEEN BEHEER */}
                                         {bookModalTab === 'uitleen' && (
                                             <div className="flex-1 flex flex-col">
                                                 {selectedBook.lentTo ? (
@@ -1619,6 +1659,7 @@ function BoekenApp() {
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
                     
                     <div className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800">
+                        {/* Background */}
                         {quoteCard.cover ? (
                             <>
                                 <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110" style={{ backgroundImage: `url(${quoteCard.cover})` }}></div>
@@ -1627,6 +1668,8 @@ function BoekenApp() {
                         ) : (
                             <div className="absolute inset-0 bg-gradient-to-br from-stone-800 to-black"></div>
                         )}
+                        
+                        {/* Content */}
                         <div className="relative z-10 flex flex-col items-center justify-center h-full text-white w-full">
                             <Quote size={48} className="text-amber-400 mb-6 opacity-80"/>
                             <p className="text-xl sm:text-2xl font-serif italic font-medium leading-relaxed mb-6 break-words">"{quoteCard.text}"</p>
@@ -1639,16 +1682,6 @@ function BoekenApp() {
                     
                     <div className="absolute bottom-10 left-0 right-0 text-center animate-bounce">
                         <p className="text-white/70 text-sm font-bold bg-black/50 inline-block px-4 py-2 rounded-full backdrop-blur-md">✨ Maak een screenshot om te delen!</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Toasts / Notificaties UI */}
-            {toast.show && (
-                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[200] transition-all duration-300">
-                    <div className={`px-5 py-3 rounded-full shadow-2xl text-sm font-bold flex items-center gap-2 text-white border ${toast.type === 'success' ? 'bg-green-600 border-green-500' : 'bg-stone-800 border-stone-700'}`}>
-                        {toast.type === 'success' ? <CheckCircle2 size={18}/> : <Info size={18}/>}
-                        {toast.message}
                     </div>
                 </div>
             )}
@@ -1700,6 +1733,16 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Toasts / Notificaties UI (TERUGGEPLAATST) */}
+            {toast.show && (
+                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[200] transition-all duration-300">
+                    <div className={`px-5 py-3 rounded-full shadow-2xl text-sm font-bold flex items-center gap-2 text-white border ${toast.type === 'success' ? 'bg-green-600 border-green-500' : 'bg-stone-800 border-stone-700'}`}>
+                        {toast.type === 'success' ? <CheckCircle2 size={18}/> : <Info size={18}/>}
+                        {toast.message}
+                    </div>
+                </div>
+            )}
+
             {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
@@ -1724,10 +1767,24 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                     >
                         <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200/50">
                             {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" draggable="false" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-2 text-center"><Book className="text-stone-300 mb-1" size={24} /></div>)}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} p.</p></div>
-                            {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full"><Check size={12} strokeWidth={4} /></div>)}
-                            {book.shelfId === 'wishlist' && (<div className="absolute top-1.5 left-1.5 bg-amber-500 text-white p-1 rounded-full"><Star size={12} fill="white" strokeWidth={0} /></div>)}
-                            {book.lentTo && !isFinished && (<div className="absolute top-1.5 right-1.5 bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
+                            
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform">
+                                <p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} {book.format === 'audio' ? 'm.' : 'p.'}</p>
+                            </div>
+                            
+                            {/* Icoontjes in de linker bovenhoek */}
+                            <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                                {book.shelfId === 'wishlist' && (<div className="bg-amber-500 text-white p-1.5 rounded-full shadow-md"><Star size={12} fill="white" strokeWidth={0} /></div>)}
+                                {book.format === 'audio' && (<div className="bg-purple-500 text-white p-1.5 rounded-full shadow-md"><Headphones size={12} /></div>)}
+                                {book.format === 'ebook' && (<div className="bg-blue-500 text-white p-1.5 rounded-full shadow-md"><Tablet size={12} /></div>)}
+                            </div>
+
+                            {/* Voltooid / Uitleen Icoontjes rechts */}
+                            <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
+                                {isFinished && (<div className="bg-green-500 text-white p-1 rounded-full shadow-md"><Check size={12} strokeWidth={4} /></div>)}
+                                {book.lentTo && !isFinished && (<div className="bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
+                            </div>
+
                             {isDragMode && (<div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center backdrop-blur-[1px]"><GripVertical size={32} className="text-white drop-shadow-md"/></div>)}
                         </div>
                         {!isDragMode && <div className="w-full bg-stone-200/80 rounded-full h-1 mb-1"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>}
