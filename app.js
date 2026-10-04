@@ -68,6 +68,7 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "17.0.0", date: "Oktober 2026", changes: ["Menu inklapbaar gemaakt op desktop voor meer werkruimte", "Op smartphone is de menu-knop naar de linkerkant verplaatst", "Pagina's (en minuten) kunnen nu direct worden bewerkt bij het toevoegen van een log aan de kalender!"] },
     { version: "16.2.0", date: "Oktober 2026", changes: ["Je kunt nu boeken achteraf VERWIJDEREN uit de maandkalender!"] },
     { version: "16.1.0", date: "Oktober 2026", changes: ["Schappen zijn nu standaard handig ingeklapt", "Grote 'Gelezen!' knop verwijderd, minimalistische UI geperfectioneerd"] },
     { version: "16.0.0", date: "Oktober 2026", changes: ["📸 AI Kaft Scanner toegevoegd! Maak een foto van je boek en de app herkent de titel via tekstherkenning.", "🔤 Sortering (A-Z, Z-A, Nieuwste) en Filter knop bovenaan toegevoegd.", "Oude trage barcode-scanner is verwijderd."] },
@@ -134,6 +135,8 @@ function BoekenApp() {
 
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+    
     const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
 
     const [books, setBooks] = useState([]);
@@ -145,7 +148,7 @@ function BoekenApp() {
     const [sortOption, setSortOption] = useState('az'); 
 
     const [activeTab, setActiveTab] = useState('alle');
-    const [expandedShelves, setExpandedShelves] = useState([]); // Schappen standaard ingeklapt
+    const [expandedShelves, setExpandedShelves] = useState([]); 
     
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
@@ -171,7 +174,7 @@ function BoekenApp() {
     const [isDragMode, setIsDragMode] = useState(false);
 
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
-    const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
+    const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
     const [streakWeekOffset, setStreakWeekOffset] = useState(0);
 
@@ -599,13 +602,20 @@ function BoekenApp() {
     const handleRetroactiveLog = async (e) => {
         e.preventDefault(); if (!activeUserId || !calendarLogData.bookId) return;
         const book = books.find(b => b.id === calendarLogData.bookId); if (!book) return;
+
+        // Pagina Update checken
+        const newPages = parseInt(calendarLogData.pagesRead);
+        if (!isNaN(newPages) && newPages !== parseInt(book.pagesRead)) {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', book.id), { pagesRead: newPages });
+        }
+
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
+        
         if(calendarLogData.dateStr === getTodayString()) handleLogReading(true);
-        setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' });
-        showToast("Leessessie toegevoegd aan je kalender!");
+        setCalendarLogData({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
+        showToast("Leessessie en voortgang opgeslagen in je kalender!");
     };
 
-    // NIEUW: Log verwijderen uit de kalender
     const handleDeleteLog = async (logId) => {
         if (!activeUserId) return;
         requestConfirm("Weet je zeker dat je dit boek van deze dag wilt verwijderen?", async () => {
@@ -783,7 +793,7 @@ function BoekenApp() {
             const hasRead = dayLogs.length > 0;
 
             days.push(
-                <div key={day} onClick={() => setCalendarLogData({ isOpen: true, dateStr: dateStr, bookId: '' })} className={`h-24 sm:h-32 p-2 rounded-xl border relative cursor-pointer hover:bg-amber-50 transition-colors overflow-hidden ${isCurrentDay ? 'border-amber-500 bg-amber-50/50 shadow-sm' : 'border-stone-200 bg-white'}`}>
+                <div key={day} onClick={() => setCalendarLogData({ isOpen: true, dateStr: dateStr, bookId: '', pagesRead: '' })} className={`h-24 sm:h-32 p-2 rounded-xl border relative cursor-pointer hover:bg-amber-50 transition-colors overflow-hidden ${isCurrentDay ? 'border-amber-500 bg-amber-50/50 shadow-sm' : 'border-stone-200 bg-white'}`}>
                     <div className="flex justify-between items-start">
                         <span className={`text-sm font-bold ${isCurrentDay ? 'text-amber-600' : 'text-stone-500'}`}>{day}</span>
                         {hasRead && <Flame size={14} className="text-orange-500" />}
@@ -848,9 +858,11 @@ function BoekenApp() {
                         <button onClick={() => setImpersonatedUser(null)} className="bg-black/30 hover:bg-black/50 px-3 py-1 rounded-lg text-xs font-bold transition-colors">Terug</button>
                     </div>
                 )}
-                <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
-                    <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
+                {/* MENU OP SMARTPHONE AANGEPAST (Icoon links) */}
+                <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between shadow-md">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
+                    <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
+                    <div className="w-8"></div> {/* Spacer voor perfecte centrering */}
                 </div>
             </div>
 
@@ -859,39 +871,88 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
-                <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                {/* INKLAPBAAR MENU OP DESKTOP (isDesktopCollapsed) */}
+                <nav className={`fixed inset-y-0 left-0 z-50 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-all duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} ${isDesktopCollapsed ? 'md:w-20' : 'md:w-72'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
-                            <div className="flex items-center gap-3"><div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl"><Library className="text-white" size={28} /></div><h1 className="text-2xl font-bold">Boeken<span className="text-amber-500">Plank</span></h1></div>
+                            {!isDesktopCollapsed && (
+                                <div className="flex items-center gap-3"><div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl flex-shrink-0"><Library className="text-white" size={28} /></div><h1 className="text-2xl font-bold">Boeken<span className="text-amber-500">Plank</span></h1></div>
+                            )}
+                            {isDesktopCollapsed && (
+                                <div className="w-full flex flex-col items-center gap-4">
+                                    <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-2 rounded-xl flex-shrink-0"><Library className="text-white" size={24} /></div>
+                                    <button className="hidden md:block text-stone-400 hover:text-white bg-stone-800 rounded-full p-1.5 transition" onClick={() => setIsDesktopCollapsed(false)}>
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
+                            )}
+                            {!isDesktopCollapsed && (
+                                <button className="hidden md:block text-stone-400 hover:text-white p-1 transition" onClick={() => setIsDesktopCollapsed(true)}>
+                                    <ChevronLeft size={24} />
+                                </button>
+                            )}
                             <button className="md:hidden text-stone-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
                         </div>
-                        <div className="flex items-center gap-3 mb-4 bg-stone-800/50 p-3 rounded-2xl border border-stone-700">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold text-lg border-2 border-stone-700">{userData.name.charAt(0).toUpperCase()}</div>
-                            <div className="flex-1 min-w-0"><p className="font-bold text-sm truncate text-white">{userData.name}</p><p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p></div>
-                            <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors"><LogOut size={16}/></button>
+                        
+                        <div className={`flex items-center gap-3 mb-4 bg-stone-800/50 rounded-2xl border border-stone-700 ${isDesktopCollapsed ? 'p-2 justify-center flex-col' : 'p-3'}`}>
+                            <div className={`rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 ${isDesktopCollapsed ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-lg'}`}>
+                                {userData.name.charAt(0).toUpperCase()}
+                            </div>
+                            {!isDesktopCollapsed && (
+                                <div className="flex-1 min-w-0"><p className="font-bold text-sm truncate text-white">{userData.name}</p><p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p></div>
+                            )}
+                            {!isDesktopCollapsed && (
+                                <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors flex-shrink-0"><LogOut size={16}/></button>
+                            )}
                         </div>
                     </div>
 
                     <div className="p-6 flex-1 overflow-y-auto hide-scrollbar flex flex-col">
                         <div className="flex flex-col gap-2 flex-1">
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p>
-                            <button onClick={() => switchTab('alle')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookOpen size={20} /> Alle Boeken</button>
-                            <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
+                            {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p> : <div className="h-4"></div>}
+                            <button onClick={() => switchTab('alle')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Alle Boeken" : ""}>
+                                <BookOpen size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Alle Boeken</span>}
+                            </button>
+                            <button onClick={() => switchTab('schappen')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Schappen" : ""}>
+                                <Library size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Schappen</span>}
+                            </button>
                             
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Mijn Lijsten</p>
-                            <button onClick={() => switchTab('wensenlijst')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'wensenlijst' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookmarkPlus size={20} /> Wensenlijst</button>
-                            <button onClick={() => switchTab('gelezen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'gelezen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><CheckCircle2 size={20} /> Gelezen</button>
-                            <button onClick={() => switchTab('kalender')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'kalender' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><CalendarDays size={20} /> Kalender</button>
+                            {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Mijn Lijsten</p> : <div className="h-4"></div>}
+                            <button onClick={() => switchTab('wensenlijst')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'wensenlijst' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Wensenlijst" : ""}>
+                                <BookmarkPlus size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Wensenlijst</span>}
+                            </button>
+                            <button onClick={() => switchTab('gelezen')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'gelezen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Gelezen" : ""}>
+                                <CheckCircle2 size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Gelezen</span>}
+                            </button>
+                            <button onClick={() => switchTab('kalender')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'kalender' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Kalender" : ""}>
+                                <CalendarDays size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Kalender</span>}
+                            </button>
 
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p>
-                            <button onClick={() => switchTab('beheer')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Settings size={20} /> Schappen Beheren</button>
-                            <button onClick={() => switchTab('changelog')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><History size={20} /> Versiegeschiedenis</button>
+                            {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p> : <div className="h-4"></div>}
+                            <button onClick={() => switchTab('beheer')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Schappen Beheren" : ""}>
+                                <Settings size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Schappen Beheren</span>}
+                            </button>
+                            <button onClick={() => switchTab('changelog')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Versiegeschiedenis" : ""}>
+                                <History size={20} className="flex-shrink-0"/>
+                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Versiegeschiedenis</span>}
+                            </button>
                             
                             {userData.role === 'admin' && (
-                                <button onClick={() => switchTab('admin')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Shield size={20} /> Systeem Admin</button>
+                                <button onClick={() => switchTab('admin')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Systeem Admin" : ""}>
+                                    <Shield size={20} className="flex-shrink-0"/>
+                                    {!isDesktopCollapsed && <span className="whitespace-nowrap">Systeem Admin</span>}
+                                </button>
                             )}
                         </div>
-                        <div className="mt-6 pt-4 border-t border-stone-800 text-center"><p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p></div>
+                        <div className="mt-6 pt-4 border-t border-stone-800 text-center">
+                            {!isDesktopCollapsed && <p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p>}
+                        </div>
                     </div>
                 </nav>
 
@@ -912,7 +973,6 @@ function BoekenApp() {
                                                 <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
                                             </p>
                                             
-                                            {/* Minimalistische Gelezen Vandaag Knop (Alleen als Gelezen!) */}
                                             {hasReadToday && (
                                                 <button onClick={() => handleUndoLogReading()} className="hidden lg:flex mt-2 w-fit px-2.5 py-1.5 rounded-lg items-center gap-1.5 font-bold transition-all shadow-sm text-[10px] bg-green-50 text-green-700 border border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200">
                                                     <CheckCircle2 size={12} className="shrink-0"/>
@@ -969,7 +1029,6 @@ function BoekenApp() {
                             </div>
                         )}
 
-                        {/* Schappen met Kleur en Inklappen */}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -1198,7 +1257,7 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {/* Boek Toevoegen Modal (Met AI Kaft Scanner!) */}
+            {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -1330,7 +1389,7 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Retroactive Calendar Log Modal - NU MET DELETE FUNCTIE */}
+            {/* Retroactive Calendar Log Modal - INCLUSIEF PAGINA UPDATE */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1340,7 +1399,6 @@ function BoekenApp() {
                         </div>
                         
                         <div className="p-6 overflow-y-auto hide-scrollbar">
-                            {/* Bestaande logs voor deze datum weergave */}
                             {(() => {
                                 const dayLogs = readingLogs.filter(l => l.date === calendarLogData.dateStr);
                                 if (dayLogs.length > 0) {
@@ -1364,19 +1422,34 @@ function BoekenApp() {
                                 return null;
                             })()}
 
-                            {/* Nieuw boek toevoegen formulier */}
                             <form onSubmit={handleRetroactiveLog}>
                                 {books.length === 0 ? <p className="text-red-500 font-bold mb-4">Je hebt nog geen boeken in je bibliotheek.</p> : (
                                     <div className="mb-6">
                                         <label className="block text-sm font-bold text-stone-700 mb-2">Nieuw boek toevoegen aan deze dag:</label>
-                                        <select required value={calendarLogData.bookId} onChange={e => setCalendarLogData({...calendarLogData, bookId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
+                                        <select required value={calendarLogData.bookId} onChange={e => {
+                                            const selectedId = e.target.value;
+                                            const book = books.find(b => b.id === selectedId);
+                                            setCalendarLogData({...calendarLogData, bookId: selectedId, pagesRead: book ? book.pagesRead : ''});
+                                        }} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
                                             <option value="" disabled>Selecteer een boek...</option>
                                             {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
                                         </select>
                                     </div>
                                 )}
+
+                                {calendarLogData.bookId && (
+                                    <div className="mb-6 animate-fade-in">
+                                        <label className="block text-sm font-bold text-stone-700 mb-2">Tot welke pagina (of minuut) was je op deze dag?</label>
+                                        <div className="flex items-center gap-3">
+                                            <input type="number" required value={calendarLogData.pagesRead} onChange={e => setCalendarLogData({...calendarLogData, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500 text-xl" />
+                                            <span className="text-stone-500 font-bold whitespace-nowrap">van {books.find(b => b.id === calendarLogData.bookId)?.totalPages || '?'}</span>
+                                        </div>
+                                        <p className="text-xs text-stone-500 mt-2">Dit past direct de huidige leesvoortgang aan in je bibliotheek!</p>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-end gap-3 pt-2">
-                                    <button type="button" onClick={() => setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Sluiten</button>
+                                    <button type="button" onClick={() => setCalendarLogData({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Sluiten</button>
                                     <button type="submit" disabled={books.length === 0 || !calendarLogData.bookId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Log Opslaan</button>
                                 </div>
                             </form>
@@ -1410,7 +1483,7 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Confirm Dialog Modal - Z-INDEX 130 ZODAT HIJ OVER DE KALENDER MODAL VALT */}
+            {/* Confirm Dialog Modal - Z-INDEX 130 */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[130] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
@@ -1733,7 +1806,7 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Toasts / Notificaties UI (TERUGGEPLAATST) */}
+            {/* Toasts / Notificaties UI */}
             {toast.show && (
                 <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[200] transition-all duration-300">
                     <div className={`px-5 py-3 rounded-full shadow-2xl text-sm font-bold flex items-center gap-2 text-white border ${toast.type === 'success' ? 'bg-green-600 border-green-500' : 'bg-stone-800 border-stone-700'}`}>
@@ -1798,3 +1871,6 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<BoekenApp />);
+```eof
+
+Probeer het menu links op je desktop maar eens in te klappen, je zult zien dat je dan prachtig de hele breedte van je scherm kunt gebruiken voor de boeken! Werkt het updaten van de pagina's in de kalender nu helemaal naar wens?
