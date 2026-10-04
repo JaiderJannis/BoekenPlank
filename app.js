@@ -5,7 +5,8 @@ import {
     CheckCircle2, X, Trash2, Edit3, Camera, Search, Book, 
     BarChart, AlertCircle, Check, Info, LogOut, Users, Shield, ArrowLeftRight,
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
-    ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2
+    ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
+    Quote, FileText, Send, UserCheck, UserMinus, Clock
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -37,9 +38,9 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "10.2.0", date: "Oktober 2026", changes: ["Bugfix: 'Bewerk' knop bij boeken is nu ook zichtbaar op smartphones!", "Debounce tijd (wachttijd zoeken) verhoogd naar 1,5 sec om Google API blokkades definitief te voorkomen", "Visuele feedback (laad-icoontje) toegevoegd bij het scannen van een ISBN"] },
-    { version: "10.1.0", date: "Oktober 2026", changes: ["API Rate-Limit protectie (Voorkomt Google Books '429' ban)", "Zoekfunctie wachttijd verhoogd naar 1,2 sec voor stabiliteit"] },
-    { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' functionaliteit", "Nieuwe 'Gelezen' lijst", "Sterren-beoordeling en reviews voor uitgelezen boeken"] },
+    { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen", "Bugfix: Bewerk-knop is nu altijd zichtbaar op smartphones", "Foutafhandeling scanner en zoekfunctie verbeterd voor API-limieten"] },
+    { version: "10.2.0", date: "Oktober 2026", changes: ["API Rate-Limit protectie verbeterd", "Zoekfunctie wachttijd verhoogd voor stabiliteit"] },
+    { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' en 'Gelezen' functionaliteit"] },
 ];
 
 function BoekenApp() {
@@ -68,9 +69,15 @@ function BoekenApp() {
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
+    
+    // Modal & Book States
     const [selectedBook, setSelectedBook] = useState(null); 
+    const [bookModalTab, setBookModalTab] = useState('overzicht'); // 'overzicht', 'notities', 'uitleen'
     const [isEditingBook, setIsEditingBook] = useState(false);
     const [editBookData, setEditBookData] = useState(null);
+    const [newNote, setNewNote] = useState({ text: '', type: 'quote' });
+    const [lendData, setLendData] = useState({ name: '', date: getTodayString() });
+
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [apiLimitError, setApiLimitError] = useState(false); 
@@ -143,7 +150,12 @@ function BoekenApp() {
             setTimeout(() => {
                 const scanner = new window.Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 }, false);
                 scannerRef.current = scanner;
-                scanner.render((text) => { setNewBook(p => ({ ...p, isbn: text })); setIsScannerOpen(false); scanner.clear(); fetchBookData(text); }, () => {});
+                scanner.render((text) => { 
+                    setNewBook(p => ({ ...p, isbn: text })); 
+                    setIsScannerOpen(false); 
+                    scanner.clear(); 
+                    fetchBookData(text); 
+                }, () => {});
             }, 100);
         }
         return () => { if (scannerRef.current) scannerRef.current.clear().catch(console.error); };
@@ -195,7 +207,9 @@ function BoekenApp() {
             } catch (e) { console.warn('OpenLibrary ISBN fetch error:', e); }
         }
         if (foundBook) setNewBook(p => ({ ...p, title: foundBook.title || p.title, author: foundBook.author || p.author, cover: foundBook.cover || p.cover, totalPages: foundBook.totalPages || p.totalPages }));
-        else if (!apiLimitError) setErrorMsg('Geen boek gevonden op dit ISBN.');
+        else if (apiLimitError) setErrorMsg('Te veel opdrachten! Scanner en Google zoeken tijdelijk geblokkeerd. Wacht 1 minuut.');
+        else setErrorMsg('Geen boek gevonden op dit ISBN.');
+        
         setIsFetchingIsbn(false);
     };
 
@@ -203,14 +217,12 @@ function BoekenApp() {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
         
-        // Vernietig vorige timeout (Debounce)
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         if(q.length < 3) { setTitleSuggestions([]); setIsSearchingTitle(false); setApiLimitError(false); return; }
         
         setIsSearchingTitle(true);
         setApiLimitError(false);
         
-        // Verhoogde wachttijd naar 1500ms (1.5s) om Google Ban definitief te voorkomen
         searchTimeoutRef.current = setTimeout(async () => {
             let combinedResults = [];
             let hitLimit = false;
@@ -227,7 +239,7 @@ function BoekenApp() {
                         combinedResults = [...combinedResults, ...gbResults];
                     }
                 }
-            } catch(err) { console.warn('Google Books suggesties error:', err); }
+            } catch(err) {}
             
             try {
                 const res = await fetch(`https://search.openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=4`);
@@ -238,12 +250,12 @@ function BoekenApp() {
                         combinedResults = [...combinedResults, ...olResults];
                     }
                 }
-            } catch(err) { console.warn('OpenLibrary suggesties error:', err); }
+            } catch(err) {}
             
             const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title?.toLowerCase(), item])).values());
             setTitleSuggestions(uniqueResults.slice(0, 6));
             setIsSearchingTitle(false);
-        }, 1500); // 1.5 seconden wachttijd
+        }, 1500); 
     };
 
     const selectTitleSuggestion = (item) => {
@@ -266,7 +278,18 @@ function BoekenApp() {
 
     const handleAddBook = async (e) => {
         e.preventDefault(); if (!activeUserId || !newBook.title || !newBook.shelfId) return;
-        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), { ...newBook, author: newBook.author || 'Onbekend', totalPages: parseInt(newBook.totalPages) || 0, pagesRead: parseInt(newBook.pagesRead) || 0, rating: 0, review: '', addedAt: new Date().toISOString() });
+        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), { 
+            ...newBook, 
+            author: newBook.author || 'Onbekend', 
+            totalPages: parseInt(newBook.totalPages) || 0, 
+            pagesRead: parseInt(newBook.pagesRead) || 0, 
+            rating: 0, 
+            review: '', 
+            notes: [],
+            lentTo: null,
+            lentDate: null,
+            addedAt: new Date().toISOString() 
+        });
         setNewBook(initialBookState); setIsBookModalOpen(false); setTitleSuggestions([]);
     };
 
@@ -296,6 +319,40 @@ function BoekenApp() {
         if (!activeUserId || !selectedBook) return;
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
         alert("Beoordeling opgeslagen!");
+    };
+
+    // Nieuwe Functies: Notities & Quotes
+    const handleAddNote = async (e) => {
+        e.preventDefault();
+        if (!activeUserId || !selectedBook || !newNote.text) return;
+        const updatedNotes = [...(selectedBook.notes || []), { ...newNote, date: new Date().toISOString(), id: Date.now().toString() }];
+        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
+        setSelectedBook({...selectedBook, notes: updatedNotes});
+        setNewNote({ text: '', type: 'quote' });
+    };
+
+    const handleDeleteNote = async (noteId) => {
+        if (!activeUserId || !selectedBook) return;
+        requestConfirm("Weet je zeker dat je deze notitie wilt verwijderen?", async () => {
+            const updatedNotes = (selectedBook.notes || []).filter(n => n.id !== noteId);
+            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
+            setSelectedBook({...selectedBook, notes: updatedNotes});
+        });
+    };
+
+    // Nieuwe Functies: Uitleenbeheer
+    const handleLendBook = async (e) => {
+        e.preventDefault();
+        if (!activeUserId || !selectedBook || !lendData.name) return;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
+        setSelectedBook({...selectedBook, lentTo: lendData.name, lentDate: lendData.date});
+        setLendData({ name: '', date: getTodayString() });
+    };
+
+    const handleReturnBook = async () => {
+        if (!activeUserId || !selectedBook) return;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: null, lentDate: null });
+        setSelectedBook({...selectedBook, lentTo: null, lentDate: null});
     };
 
     const handleDeleteBook = async () => {
@@ -633,7 +690,7 @@ function BoekenApp() {
                                                     </div>
                                                 ) : (
                                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                                        <BookList books={shelfBooks} onSelect={setSelectedBook} isDragMode={isDragMode} onDragStart={onDragStartBook} />
+                                                        <BookList books={shelfBooks} onSelect={(b) => { setSelectedBook(b); setBookModalTab('overzicht'); }} isDragMode={isDragMode} onDragStart={onDragStartBook} />
                                                     </div>
                                                 )}
                                             </div>
@@ -652,7 +709,7 @@ function BoekenApp() {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                        <BookList books={filteredBooks} onSelect={setSelectedBook} />
+                                        <BookList books={filteredBooks} onSelect={(b) => { setSelectedBook(b); setBookModalTab('overzicht'); }} />
                                     </div>
                                 )}
                             </div>
@@ -824,7 +881,7 @@ function BoekenApp() {
                                     <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center"><Camera size={16} /></button>
                                 </div>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
-                                {apiLimitError && <p className="text-red-600 font-bold text-xs mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14}/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken). Wacht heel even.</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken tegelijk). Wacht even 1 minuut.</p>}
                             </div>
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -832,7 +889,7 @@ function BoekenApp() {
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
                                         
-                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem overbelast: stop even 1 minuut met typen.</p>}
+                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem overbelast: stop even met typen.</p>}
 
                                         {isSearchingTitle && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
@@ -956,81 +1013,186 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* View/Edit Book Modal - NU MET ALTIJD ZICHTBARE BEWERK KNOP OP MOBIEL */}
+            {/* View/Edit Book Modal - MEGA UPDATE MET TABS EN MOBIELE KNOP */}
             {selectedBook && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]">
-                        <div className="md:w-5/12 bg-stone-100 relative h-48 md:h-auto border-r border-stone-200 flex-shrink-0">
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
+                        
+                        {/* Linkerkant (Cover) */}
+                        <div className="md:w-2/5 bg-stone-100 relative h-48 md:h-auto border-r border-stone-200 flex-shrink-0">
                             {selectedBook.cover ? (<img src={selectedBook.cover} alt={selectedBook.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center bg-stone-200 text-stone-400 p-6"><Book size={64} /></div>)}
                             <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="md:hidden absolute top-4 right-4 text-white bg-black/40 p-2 rounded-full"><X size={20} /></button>
                             {selectedBook.shelfId === 'wishlist' && <div className="absolute top-4 left-4 bg-amber-500 text-white px-3 py-1 rounded-full font-bold text-xs shadow-md">Wensenlijst</div>}
                         </div>
-                        <div className="p-5 md:p-8 md:w-7/12 flex flex-col bg-white overflow-y-auto">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex-1 pr-2">
-                                    <h3 className="text-xl sm:text-2xl font-black mb-1 leading-tight">{selectedBook.title}</h3>
-                                    <p className="text-base sm:text-lg text-stone-500 font-medium">{selectedBook.author}</p>
+                        
+                        {/* Rechterkant (Inhoud) */}
+                        <div className="p-0 flex flex-col bg-white overflow-hidden md:w-3/5 flex-1">
+                            
+                            {/* Header met Titel en Acties */}
+                            <div className="p-5 md:p-6 pb-0 border-b border-stone-100 flex-shrink-0">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex-1 pr-2">
+                                        <h3 className="text-xl sm:text-2xl font-black mb-1 leading-tight">{selectedBook.title}</h3>
+                                        <p className="text-base sm:text-lg text-stone-500 font-medium">{selectedBook.author}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 sm:gap-2">
+                                        {/* BEWERK KNOP: Nu flex in plaats van hidden md:flex zodat hij altijd zichtbaar is */}
+                                        {!isEditingBook && (
+                                            <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
+                                                <Edit3 size={16}/> <span className="hidden sm:inline">Bewerk</span>
+                                            </button>
+                                        )}
+                                        <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="hidden md:block bg-stone-100 hover:bg-stone-200 transition-colors p-2 rounded-xl"><X size={20} /></button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1 sm:gap-2">
-                                    {!isEditingBook && (
-                                        <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
-                                            <Edit3 size={16}/> <span className="hidden sm:inline">Bewerk</span>
+                                
+                                {/* Tabs Navigatie */}
+                                {!isEditingBook && (
+                                    <div className="flex gap-4 overflow-x-auto hide-scrollbar -mb-[1px]">
+                                        <button onClick={() => setBookModalTab('overzicht')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${bookModalTab === 'overzicht' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>Overzicht</button>
+                                        <button onClick={() => setBookModalTab('notities')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1 ${bookModalTab === 'notities' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>Notities <span className="bg-stone-100 text-stone-500 text-[10px] px-1.5 py-0.5 rounded-full">{selectedBook.notes?.length || 0}</span></button>
+                                        <button onClick={() => setBookModalTab('uitleen')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1 ${bookModalTab === 'uitleen' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>
+                                            Uitleenbeheer {selectedBook.lentTo && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}
                                         </button>
-                                    )}
-                                    <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="hidden md:block bg-stone-100 p-2 rounded-full"><X size={24} /></button>
-                                </div>
+                                    </div>
+                                )}
                             </div>
                             
-                            {isEditingBook && editBookData ? (
-                                <form onSubmit={handleUpdateBookDetails} className="mt-4 bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-amber-900">Boekgegevens wijzigen</h4>
-                                        <button type="button" onClick={() => setIsEditingBook(false)} className="text-amber-700 hover:text-amber-900"><X size={20}/></button>
-                                    </div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Titel</label><input type="text" required value={editBookData.title} onChange={e => setEditBookData({...editBookData, title: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={editBookData.author} onChange={e => setEditBookData({...editBookData, author: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL</label><input type="text" value={editBookData.cover || ''} onChange={e => setEditBookData({...editBookData, cover: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs font-bold text-stone-700 mb-1">Locatie</label>
-                                            <select required value={editBookData.shelfId} onChange={e => setEditBookData({...editBookData, shelfId: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none font-bold">
-                                                <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
-                                                {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
-                                            </select>
+                            {/* Content Area */}
+                            <div className="p-5 md:p-6 overflow-y-auto flex-1 flex flex-col bg-stone-50/50">
+                                {isEditingBook && editBookData ? (
+                                    /* BEWERK FORMULIER */
+                                    <form onSubmit={handleUpdateBookDetails} className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="font-bold text-amber-900">Boekgegevens wijzigen</h4>
+                                            <button type="button" onClick={() => setIsEditingBook(false)} className="text-amber-700 hover:text-amber-900"><X size={20}/></button>
                                         </div>
-                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
-                                    </div>
-                                    <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-2 shadow-md"><Save size={18}/> Wijzigingen Opslaan</button>
-                                </form>
-                            ) : (
-                                <div className="mt-auto space-y-4">
-                                    {/* Star Rating UI for finished books */}
-                                    {isBookFinished(selectedBook) && (
-                                        <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
-                                            <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Star size={16}/> Jouw Beoordeling</h4>
-                                            <div className="flex gap-1 mb-3">
-                                                {[1,2,3,4,5].map(star => (
-                                                    <Star key={star} onClick={() => setSelectedBook({...selectedBook, rating: star})} className={`cursor-pointer transition-transform hover:scale-110 ${selectedBook.rating >= star ? 'text-amber-500 fill-amber-500' : 'text-stone-300'}`} size={28}/>
-                                                ))}
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Titel</label><input type="text" required value={editBookData.title} onChange={e => setEditBookData({...editBookData, title: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={editBookData.author} onChange={e => setEditBookData({...editBookData, author: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL</label><input type="text" value={editBookData.cover || ''} onChange={e => setEditBookData({...editBookData, cover: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-stone-700 mb-1">Locatie</label>
+                                                <select required value={editBookData.shelfId} onChange={e => setEditBookData({...editBookData, shelfId: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none font-bold">
+                                                    <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
+                                                    {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                                </select>
                                             </div>
-                                            <textarea value={selectedBook.review || ''} onChange={e => setSelectedBook({...selectedBook, review: e.target.value})} placeholder="Wat vond je van dit boek? (Optioneel)" className="w-full bg-white border border-amber-200 rounded-xl p-3 text-sm resize-none h-20 outline-none focus:border-amber-400"></textarea>
-                                            <button onClick={handleUpdateReview} className="mt-2 text-xs font-bold bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-300 transition-colors">Beoordeling Opslaan</button>
+                                            <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         </div>
-                                    )}
-
-                                    <form onSubmit={handleUpdateProgress} className="bg-stone-50 p-5 rounded-2xl border border-stone-200">
-                                        <label className="block text-sm font-bold text-stone-700 mb-3">Leesvoortgang updaten</label>
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <input type="number" min="0" max={selectedBook.totalPages || 9999} required value={selectedBook.pagesRead} onChange={e => setSelectedBook({...selectedBook, pagesRead: e.target.value})} className="w-24 text-2xl font-black border-2 rounded-xl px-3 py-2 outline-none text-center bg-white" />
-                                            <span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} pag.</span>
-                                        </div>
-                                        <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
-                                            <button type="button" onClick={handleDeleteBook} className="text-red-500 p-3 rounded-xl hover:bg-red-50"><Trash2 size={24} /></button>
-                                            <button type="submit" className="flex-1 bg-stone-900 text-white font-black py-3 rounded-xl shadow-lg">Voortgang Opslaan</button>
-                                        </div>
+                                        <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-2 shadow-md"><Save size={18}/> Wijzigingen Opslaan</button>
                                     </form>
-                                </div>
-                            )}
+                                ) : (
+                                    <>
+                                        {/* TAB: OVERZICHT */}
+                                        {bookModalTab === 'overzicht' && (
+                                            <div className="mt-auto space-y-4 flex-1 flex flex-col">
+                                                {selectedBook.lentTo && (
+                                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="bg-blue-500 p-2 rounded-full text-white"><UserCheck size={20}/></div>
+                                                            <div><p className="text-sm font-bold text-blue-900">Uitgeleend aan {selectedBook.lentTo}</p><p className="text-xs text-blue-700">Sinds {selectedBook.lentDate}</p></div>
+                                                        </div>
+                                                        <button onClick={() => setBookModalTab('uitleen')} className="text-xs bg-white text-blue-600 px-3 py-1.5 rounded-lg font-bold shadow-sm border border-blue-100">Beheer</button>
+                                                    </div>
+                                                )}
+
+                                                {/* Star Rating UI for finished books */}
+                                                {isBookFinished(selectedBook) && (
+                                                    <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                                                        <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Star size={16}/> Jouw Beoordeling</h4>
+                                                        <div className="flex gap-1 mb-3">
+                                                            {[1,2,3,4,5].map(star => (
+                                                                <Star key={star} onClick={() => setSelectedBook({...selectedBook, rating: star})} className={`cursor-pointer transition-transform hover:scale-110 ${selectedBook.rating >= star ? 'text-amber-500 fill-amber-500' : 'text-stone-300'}`} size={28}/>
+                                                            ))}
+                                                        </div>
+                                                        <textarea value={selectedBook.review || ''} onChange={e => setSelectedBook({...selectedBook, review: e.target.value})} placeholder="Wat vond je van dit boek? (Optioneel)" className="w-full bg-white border border-amber-200 rounded-xl p-3 text-sm resize-none h-20 outline-none focus:border-amber-400"></textarea>
+                                                        <button onClick={handleUpdateReview} className="mt-2 text-xs font-bold bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-300 transition-colors">Beoordeling Opslaan</button>
+                                                    </div>
+                                                )}
+
+                                                <form onSubmit={handleUpdateProgress} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm mt-auto">
+                                                    <label className="block text-sm font-bold text-stone-700 mb-3">Leesvoortgang updaten</label>
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <input type="number" min="0" max={selectedBook.totalPages || 9999} required value={selectedBook.pagesRead} onChange={e => setSelectedBook({...selectedBook, pagesRead: e.target.value})} className="w-24 text-2xl font-black border-2 rounded-xl px-3 py-2 outline-none text-center bg-stone-50 focus:bg-white" />
+                                                        <span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} pag.</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-100">
+                                                        <button type="button" onClick={handleDeleteBook} className="text-red-500 p-3 rounded-xl hover:bg-red-50"><Trash2 size={24} /></button>
+                                                        <button type="submit" className="flex-1 bg-stone-900 hover:bg-stone-800 text-white font-black py-3 rounded-xl shadow-lg transition-colors">Voortgang Opslaan</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        )}
+
+                                        {/* TAB: NOTITIES & QUOTES */}
+                                        {bookModalTab === 'notities' && (
+                                            <div className="flex-1 flex flex-col">
+                                                <form onSubmit={handleAddNote} className="mb-6 bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex-shrink-0">
+                                                    <div className="flex gap-2 mb-3">
+                                                        <button type="button" onClick={() => setNewNote({...newNote, type: 'quote'})} className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${newNote.type === 'quote' ? 'bg-stone-900 text-white border-stone-900' : 'bg-stone-50 text-stone-500 border-stone-200'}`}><Quote size={14}/> Quote</button>
+                                                        <button type="button" onClick={() => setNewNote({...newNote, type: 'note'})} className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${newNote.type === 'note' ? 'bg-stone-900 text-white border-stone-900' : 'bg-stone-50 text-stone-500 border-stone-200'}`}><FileText size={14}/> Notitie</button>
+                                                    </div>
+                                                    <textarea required value={newNote.text} onChange={e => setNewNote({...newNote, text: e.target.value})} placeholder={newNote.type === 'quote' ? "Typ een mooie zin uit het boek..." : "Wat zijn je gedachten hierbij?"} className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm resize-none h-20 outline-none focus:border-amber-400 focus:bg-white mb-2"></textarea>
+                                                    <div className="flex justify-end">
+                                                        <button type="submit" disabled={!newNote.text} className="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 disabled:opacity-50"><Send size={14}/> Toevoegen</button>
+                                                    </div>
+                                                </form>
+
+                                                <div className="space-y-3 overflow-y-auto flex-1 hide-scrollbar">
+                                                    {(!selectedBook.notes || selectedBook.notes.length === 0) ? (
+                                                        <div className="text-center p-6 text-stone-400 font-medium">Je hebt nog geen notities of quotes toegevoegd aan dit boek.</div>
+                                                    ) : (
+                                                        selectedBook.notes.sort((a,b) => new Date(b.date) - new Date(a.date)).map(note => (
+                                                            <div key={note.id} className={`p-4 rounded-2xl relative group border ${note.type === 'quote' ? 'bg-amber-50/50 border-amber-100' : 'bg-white border-stone-200 shadow-sm'}`}>
+                                                                <button onClick={() => handleDeleteNote(note.id)} className="absolute top-2 right-2 text-stone-300 hover:text-red-500 p-1 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
+                                                                {note.type === 'quote' ? (
+                                                                    <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
+                                                                ) : (
+                                                                    <div className="flex gap-2"><FileText size={16} className="text-stone-400 flex-shrink-0 mt-0.5"/><p className="text-sm text-stone-700 leading-relaxed">{note.text}</p></div>
+                                                                )}
+                                                                <p className="text-[10px] text-stone-400 mt-2 ml-6 text-right font-medium">{new Date(note.date).toLocaleDateString('nl-NL')} - {new Date(note.date).toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit'})}</p>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* TAB: UITLEEN BEHEER */}
+                                        {bookModalTab === 'uitleen' && (
+                                            <div className="flex-1 flex flex-col">
+                                                {selectedBook.lentTo ? (
+                                                    <div className="bg-blue-50 border-2 border-blue-200 rounded-3xl p-6 text-center flex flex-col items-center justify-center h-full">
+                                                        <div className="w-20 h-20 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mb-4 shadow-inner"><UserCheck size={40}/></div>
+                                                        <h4 className="text-2xl font-black text-blue-900 mb-1">Uitgeleend</h4>
+                                                        <p className="text-blue-700 mb-6 font-medium">Dit boek is in het bezit van <strong className="font-black">{selectedBook.lentTo}</strong> sinds {selectedBook.lentDate}.</p>
+                                                        <button onClick={handleReturnBook} className="bg-white text-blue-600 border-2 border-blue-200 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-sm"><UserMinus size={18}/> Boek is teruggebracht</button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm h-full flex flex-col">
+                                                        <div className="mb-6">
+                                                            <h4 className="text-xl font-black text-stone-800 mb-2 flex items-center gap-2"><Share2 className="text-blue-500"/> Leen dit boek uit</h4>
+                                                            <p className="text-sm text-stone-500">Houd bij aan welke vriend(in) je dit fysieke boek hebt meegegeven.</p>
+                                                        </div>
+                                                        <form onSubmit={handleLendBook} className="space-y-4">
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-stone-700 mb-1">Naam van persoon</label>
+                                                                <input type="text" required value={lendData.name} onChange={e => setLendData({...lendData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 outline-none focus:bg-white focus:border-blue-400 font-bold" placeholder="Bijv. Sarah" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-stone-700 mb-1">Datum uitgeleend</label>
+                                                                <input type="date" required value={lendData.date} onChange={e => setLendData({...lendData, date: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 bg-stone-50 outline-none focus:bg-white focus:border-blue-400 font-bold text-stone-700" />
+                                                            </div>
+                                                            <button type="submit" disabled={!lendData.name} className="w-full mt-4 bg-blue-500 text-white font-black py-3 px-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex justify-center items-center gap-2">Uitlenen Bevestigen</button>
+                                                        </form>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1068,6 +1230,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} p.</p></div>
                             {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full"><Check size={12} strokeWidth={4} /></div>)}
                             {book.shelfId === 'wishlist' && (<div className="absolute top-1.5 left-1.5 bg-amber-500 text-white p-1 rounded-full"><Star size={12} fill="white" strokeWidth={0} /></div>)}
+                            {book.lentTo && !isFinished && (<div className="absolute top-1.5 right-1.5 bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
                             {isDragMode && (<div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center backdrop-blur-[1px]"><GripVertical size={32} className="text-white drop-shadow-md"/></div>)}
                         </div>
                         {!isDragMode && <div className="w-full bg-stone-200/80 rounded-full h-1 mb-1"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>}
