@@ -68,12 +68,11 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "23.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu volledige Schappen (inclusief alle boeken) én Bibliotheken met één klik pushen naar andere gebruikers!"] },
     { version: "22.0.0", date: "Oktober 2026", changes: ["'Bibliotheken' toegevoegd! Maak uitleenlocaties aan met eigen kleuren.", "Het 'Geleend' label toont nu de naam van de specifieke bibliotheek (in hun kleur) of vriend(in)."] },
     { version: "21.0.0", date: "Oktober 2026", changes: ["'Samenvoegen' functionaliteit toegevoegd voor Admins: bekijk boeken van andere gebruikers naadloos samen met je eigen boeken, met duidelijke labels.", "Topbalk verwijderd en Admin-menu verplaatst naar de zijbalk."] },
     { version: "20.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu gericht boeken 'pushen' (kopiëren) naar schappen van andere gebruikers.", "Vinkje toegevoegd bij boek-creatie: 'Ik heb dit boek geleend' mét visueel label."] },
-    { version: "19.0.0", date: "Oktober 2026", changes: ["Nieuwe functie: 'Ontdekken'. Bekijk boeken van andere gebruikers en kopieer ze direct naar je eigen schappen!", "Privacy instellingen toegevoegd: Bepaal zelf wie jouw boeken mag inzien en kopiëren."] },
-    { version: "18.1.0", date: "Oktober 2026", changes: ["Dynamische streakberekening ingebouwd! De lees-streak kijkt nu real-time naar je kalender en is altijd perfect in sync.", "Tijdzone en datum berekeningen gefixt"] },
-    { version: "18.0.0", date: "Oktober 2026", changes: ["Je kunt nu in de kalender achteraf de gelezen pagina's makkelijk aanpassen (via het bewerk-icoontje)", "Tags & Genres kunnen nu ook aan de Schappen worden toegevoegd!"] }
+    { version: "19.0.0", date: "Oktober 2026", changes: ["Nieuwe functie: 'Ontdekken'. Bekijk boeken van andere gebruikers en kopieer ze direct naar je eigen schappen!"] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -218,8 +217,8 @@ function BoekenApp() {
     const [publicLibraries, setPublicLibraries] = useState([]);
     const [copyBookData, setCopyBookData] = useState({ isOpen: false, book: null, targetShelfId: '' });
 
-    // Admin Push Book State
-    const [adminPushData, setAdminPushData] = useState({ isOpen: false, book: null, targetUid: '', targetShelfId: '' });
+    // Admin Push Generic State (Can push Book, Shelf or Library)
+    const [adminPushData, setAdminPushData] = useState({ isOpen: false, type: 'book', item: null, targetUid: '', targetShelfId: '' });
     const [adminPushShelves, setAdminPushShelves] = useState([]);
 
     useEffect(() => {
@@ -291,14 +290,14 @@ function BoekenApp() {
 
     // Admin Push Book: Fetch target shelves dynamically
     useEffect(() => {
-        if(adminPushData.targetUid) {
+        if(adminPushData.targetUid && adminPushData.type === 'book') {
             getDocs(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'shelves')).then(snap => {
                 setAdminPushShelves(snap.docs.map(d => ({id: d.id, ...d.data()})));
             });
         } else {
             setAdminPushShelves([]);
         }
-    }, [adminPushData.targetUid]);
+    }, [adminPushData.targetUid, adminPushData.type]);
 
 
     const handleLogin = async (e) => {
@@ -384,38 +383,93 @@ function BoekenApp() {
         }
     };
 
-    const handleAdminPushBookConfirm = async (e) => {
+    const handleAdminPushConfirm = async (e) => {
         e.preventDefault();
-        if (!userData || userData.role !== 'admin' || !adminPushData.book || !adminPushData.targetUid || !adminPushData.targetShelfId) return;
-
-        const bookToCopy = adminPushData.book;
-        const newBookData = {
-            title: bookToCopy.title || 'Onbekend',
-            author: bookToCopy.author || 'Onbekend',
-            cover: bookToCopy.cover || '',
-            isbn: bookToCopy.isbn || '',
-            totalPages: parseInt(bookToCopy.totalPages) || 0,
-            tags: bookToCopy.tags || '',
-            format: bookToCopy.format || 'fysiek',
-            seriesName: bookToCopy.seriesName || '',
-            seriesNumber: bookToCopy.seriesNumber || '',
-            shelfId: adminPushData.targetShelfId,
-            pagesRead: 0,
-            rating: 0,
-            review: '',
-            notes: [],
-            lentTo: null,
-            lentDate: null,
-            isBorrowed: false,
-            borrowedLibraryId: '',
-            borrowedPerson: '',
-            addedAt: new Date().toISOString()
-        };
+        if (!userData || userData.role !== 'admin' || !adminPushData.item || !adminPushData.targetUid) return;
 
         try {
-            await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'books'), newBookData);
-            setAdminPushData({ isOpen: false, book: null, targetUid: '', targetShelfId: '' });
-            showToast(`Boek succesvol naar de gebruiker gepusht!`);
+            if (adminPushData.type === 'book') {
+                if (!adminPushData.targetShelfId) return;
+                const bookToCopy = adminPushData.item;
+                const newBookData = {
+                    title: bookToCopy.title || 'Onbekend',
+                    author: bookToCopy.author || 'Onbekend',
+                    cover: bookToCopy.cover || '',
+                    isbn: bookToCopy.isbn || '',
+                    totalPages: parseInt(bookToCopy.totalPages) || 0,
+                    tags: bookToCopy.tags || '',
+                    format: bookToCopy.format || 'fysiek',
+                    seriesName: bookToCopy.seriesName || '',
+                    seriesNumber: bookToCopy.seriesNumber || '',
+                    shelfId: adminPushData.targetShelfId,
+                    pagesRead: 0,
+                    rating: 0,
+                    review: '',
+                    notes: [],
+                    lentTo: null,
+                    lentDate: null,
+                    isBorrowed: false,
+                    borrowedLibraryId: '',
+                    borrowedPerson: '',
+                    addedAt: new Date().toISOString()
+                };
+                await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'books'), newBookData);
+                showToast(`Boek succesvol naar de gebruiker gepusht!`);
+            } 
+            else if (adminPushData.type === 'shelf') {
+                const shelfToCopy = adminPushData.item;
+                
+                // Create new shelf
+                const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'shelves'), {
+                    name: shelfToCopy.name,
+                    description: shelfToCopy.description || '',
+                    color: shelfToCopy.color || 'bg-amber-500',
+                    tags: shelfToCopy.tags || '',
+                    order: 99,
+                    createdAt: new Date().toISOString()
+                });
+                
+                // Copy books
+                const ownerUid = shelfToCopy._ownerUid || user.uid;
+                const booksToCopy = books.filter(b => b.shelfId === shelfToCopy.id && (b._ownerUid === ownerUid || (!b._ownerUid && ownerUid === user.uid)));
+                
+                for (const b of booksToCopy) {
+                    await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'books'), {
+                        title: b.title || 'Onbekend',
+                        author: b.author || 'Onbekend',
+                        cover: b.cover || '',
+                        isbn: b.isbn || '',
+                        totalPages: parseInt(b.totalPages) || 0,
+                        tags: b.tags || '',
+                        format: b.format || 'fysiek',
+                        seriesName: b.seriesName || '',
+                        seriesNumber: b.seriesNumber || '',
+                        shelfId: newShelfRef.id, 
+                        pagesRead: 0,
+                        rating: 0,
+                        review: '',
+                        notes: [],
+                        lentTo: null,
+                        lentDate: null,
+                        isBorrowed: false,
+                        borrowedLibraryId: '',
+                        borrowedPerson: '',
+                        addedAt: new Date().toISOString()
+                    });
+                }
+                showToast(`Volledig schap succesvol gepusht!`);
+            }
+            else if (adminPushData.type === 'library') {
+                const libToCopy = adminPushData.item;
+                await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'libraries'), {
+                    name: libToCopy.name,
+                    color: libToCopy.color || 'bg-blue-500',
+                    createdAt: new Date().toISOString()
+                });
+                showToast(`Bibliotheek locatie succesvol gepusht!`);
+            }
+
+            setAdminPushData({ isOpen: false, type: 'book', item: null, targetUid: '', targetShelfId: '' });
         } catch(err) {
             showToast("Fout bij pushen.", "error");
         }
@@ -1569,7 +1623,15 @@ function BoekenApp() {
                                                         <button onClick={() => handleMoveShelf(index, -1)} disabled={index === 0} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowUp size={16}/></button>
                                                         <button onClick={() => handleMoveShelf(index, 1)} disabled={index === myShelves.length - 1} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowDown size={16}/></button>
                                                     </div>
-                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel / Push</button>
+                                                    
+                                                    {/* ADMIN PUSH BUTTON VOOR SCHAPPEN */}
+                                                    {userData && userData.role === 'admin' && (
+                                                        <button onClick={() => setAdminPushData({ isOpen: true, type: 'shelf', item: shelf, targetUid: '', targetShelfId: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-blue-100 border border-blue-200 text-blue-800 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-200">
+                                                            <SendToBack size={16}/> Push
+                                                        </button>
+                                                    )}
+
+                                                    <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel</button>
                                                     <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '', color: shelf.color || 'bg-amber-500', tags: shelf.tags || '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
                                                     <button onClick={() => handleDeleteShelf(shelf.id, shelf.name, shelf._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                 </div>
@@ -1606,6 +1668,14 @@ function BoekenApp() {
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                            
+                                                            {/* ADMIN PUSH BUTTON VOOR IMPERSONATED SCHAPPEN */}
+                                                            {userData && userData.role === 'admin' && (
+                                                                <button onClick={() => setAdminPushData({ isOpen: true, type: 'shelf', item: shelf, targetUid: '', targetShelfId: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-purple-100 border border-purple-300 text-purple-800 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-200">
+                                                                    <SendToBack size={16}/> Push
+                                                                </button>
+                                                            )}
+
                                                             <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '', color: shelf.color || 'bg-amber-500', tags: shelf.tags || '', _ownerUid: shelf._ownerUid })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-purple-200 text-purple-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-50"><Edit3 size={16}/> Bewerk</button>
                                                             <button onClick={() => handleDeleteShelf(shelf.id, shelf.name, shelf._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                         </div>
@@ -1639,6 +1709,14 @@ function BoekenApp() {
                                                         <p className="font-bold text-lg text-stone-800">{lib.name}</p>
                                                     </div>
                                                     <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                        
+                                                        {/* ADMIN PUSH BUTTON VOOR BIBLIOTHEKEN */}
+                                                        {userData && userData.role === 'admin' && (
+                                                            <button onClick={() => setAdminPushData({ isOpen: true, type: 'library', item: lib, targetUid: '', targetShelfId: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-blue-100 border border-blue-200 text-blue-800 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-200">
+                                                                <SendToBack size={16}/> Push
+                                                            </button>
+                                                        )}
+
                                                         <button onClick={() => setEditLibraryData({ isOpen: true, id: lib.id, name: lib.name, color: lib.color || 'bg-blue-500', _ownerUid: lib._ownerUid })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
                                                         <button onClick={() => handleDeleteLibrary(lib.id, lib.name, lib._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                     </div>
@@ -1658,6 +1736,14 @@ function BoekenApp() {
                                                             <p className="font-bold text-lg text-purple-900">{lib.name}</p>
                                                         </div>
                                                         <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                            
+                                                            {/* ADMIN PUSH BUTTON VOOR IMPERSONATED BIBLIOTHEKEN */}
+                                                            {userData && userData.role === 'admin' && (
+                                                                <button onClick={() => setAdminPushData({ isOpen: true, type: 'library', item: lib, targetUid: '', targetShelfId: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-purple-100 border border-purple-300 text-purple-800 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-200">
+                                                                    <SendToBack size={16}/> Push
+                                                                </button>
+                                                            )}
+
                                                             <button onClick={() => setEditLibraryData({ isOpen: true, id: lib.id, name: lib.name, color: lib.color || 'bg-blue-500', _ownerUid: lib._ownerUid })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-purple-200 text-purple-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-50"><Edit3 size={16}/> Bewerk</button>
                                                             <button onClick={() => handleDeleteLibrary(lib.id, lib.name, lib._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                         </div>
@@ -1751,19 +1837,25 @@ function BoekenApp() {
                         <div className="p-4 overflow-y-auto hide-scrollbar">
                             
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
+                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Camera size={14}/> Magische Kaft Scanner & ISBN</label>
                                 
-                                <div className="flex gap-2">
-                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
-                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
-                                        {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
-                                    </button>
-                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center">
-                                        <Camera size={16} />
+                                <div className="flex gap-2 mb-2">
+                                    <input type="file" accept="image/*" capture="environment" ref={fileInputRefOcr} onChange={handlePhotoScan} className="hidden" />
+                                    <button type="button" onClick={() => fileInputRefOcr.current.click()} disabled={isOcrLoading} className="flex-1 bg-stone-900 text-white px-3 py-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow-md hover:bg-stone-800 transition-colors">
+                                        {isOcrLoading ? <Loader2 size={18} className="animate-spin"/> : <Camera size={18} />}
+                                        {isOcrLoading ? 'Kaft Lezen...' : 'Maak foto van de Kaft'}
                                     </button>
                                 </div>
                                 
-                                {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
+                                <div className="flex gap-2 mt-3 pt-3 border-t border-amber-200/50">
+                                    <input type="text" placeholder="Of typ ISBN barcode..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
+                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
+                                        {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
+                                    </button>
+                                </div>
+                                
+                                {ocrProgress && <p className="text-[10px] text-amber-700 font-bold mt-2 animate-pulse">{ocrProgress}</p>}
+                                {errorMsg && <p className="text-red-600 font-bold text-xs mt-2">{errorMsg}</p>}
                                 {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
                             </div>
 
@@ -1936,7 +2028,7 @@ function BoekenApp() {
                                     <div className="flex items-center gap-1 sm:gap-2">
                                         {/* ADMIN PUSH KNOP (Alleen voor admins, niet voor bewerkte schermen) */}
                                         {userData && userData.role === 'admin' && !isEditingBook && (
-                                            <button onClick={() => setAdminPushData({ isOpen: true, book: selectedBook, targetUid: '', targetShelfId: '' })} className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
+                                            <button onClick={() => setAdminPushData({ isOpen: true, type: 'book', item: selectedBook, targetUid: '', targetShelfId: '' })} className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
                                                 <SendToBack size={16}/> <span className="hidden sm:inline">Push</span>
                                             </button>
                                         )}
@@ -2175,52 +2267,26 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Modal voor Kopiëren vanuit Ontdekken */}
-            {copyBookData.isOpen && copyBookData.book && (
+            {/* Admin PUSH Modal (Boeken, Schappen, Bibliotheken) */}
+            {adminPushData.isOpen && adminPushData.item && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
                         <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-xl font-black flex items-center gap-2"><Copy size={20} className="text-amber-500"/> Boek Kopiëren</h3>
-                            <p className="text-sm text-stone-500 mt-1">Voeg "{copyBookData.book.title}" toe aan je eigen bibliotheek.</p>
+                            <h3 className="text-xl font-black flex items-center gap-2">
+                                <SendToBack size={20} className="text-amber-500"/> 
+                                {adminPushData.type === 'book' && 'Push Boek naar Gebruiker'}
+                                {adminPushData.type === 'shelf' && 'Push Schap naar Gebruiker'}
+                                {adminPushData.type === 'library' && 'Push Bibliotheek naar Gebruiker'}
+                            </h3>
+                            <p className="text-sm text-stone-500 mt-1">
+                                {adminPushData.type === 'book' && `Kopieer "${adminPushData.item.title}" direct in het schap van iemand anders.`}
+                                {adminPushData.type === 'shelf' && `Kopieer schap "${adminPushData.item.name}" (incl. boeken) direct naar iemand anders.`}
+                                {adminPushData.type === 'library' && `Kopieer bibliotheek "${adminPushData.item.name}" direct naar iemand anders.`}
+                            </p>
                         </div>
-                        <form onSubmit={handleCopyBookConfirm} className="p-6">
-                            <div className="flex gap-4 items-center mb-6">
-                                {copyBookData.book.cover ? <img src={copyBookData.book.cover} className="w-16 h-24 object-cover rounded shadow-md" /> : <div className="w-16 h-24 bg-stone-200 flex items-center justify-center rounded shadow-md"><Book className="text-stone-400"/></div>}
-                                <div>
-                                    <p className="font-bold text-stone-800">{copyBookData.book.title}</p>
-                                    <p className="text-sm text-stone-500">{copyBookData.book.author}</p>
-                                </div>
-                            </div>
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-stone-700 mb-2">In welk van JOUW schappen wil je dit zetten?</label>
-                                <select required value={copyBookData.targetShelfId} onChange={e => setCopyBookData({...copyBookData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
-                                    <option value="" disabled>Selecteer een schap...</option>
-                                    <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
-                                    <optgroup label="Mijn Schappen">
-                                        {myShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </optgroup>
-                                </select>
-                            </div>
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setCopyBookData({ isOpen: false, book: null, targetShelfId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
-                                <button type="submit" disabled={!copyBookData.targetShelfId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Kopieer Boek</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Admin PUSH Book Modal (Kopiëren naar een andere gebruiker) */}
-            {adminPushData.isOpen && adminPushData.book && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-                        <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-xl font-black flex items-center gap-2"><SendToBack size={20} className="text-amber-500"/> Push naar Gebruiker</h3>
-                            <p className="text-sm text-stone-500 mt-1">Kopieer "{adminPushData.book.title}" direct in het schap van iemand anders.</p>
-                        </div>
-                        <form onSubmit={handleAdminPushBookConfirm} className="p-6">
+                        <form onSubmit={handleAdminPushConfirm} className="p-6">
                             <div className="mb-4">
-                                <label className="block text-sm font-bold text-stone-700 mb-2">Kies de Gebruiker</label>
+                                <label className="block text-sm font-bold text-stone-700 mb-2">Kies de Ontvanger</label>
                                 <select required value={adminPushData.targetUid} onChange={e => setAdminPushData({...adminPushData, targetUid: e.target.value, targetShelfId: ''})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
                                     <option value="" disabled>Selecteer gebruiker...</option>
                                     {allUsers.filter(u => u.uid !== user.uid).map(u => (
@@ -2229,17 +2295,19 @@ function BoekenApp() {
                                 </select>
                             </div>
                             
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-stone-700 mb-2">Kies hun Schap</label>
-                                <select required disabled={!adminPushData.targetUid} value={adminPushData.targetShelfId} onChange={e => setAdminPushData({...adminPushData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500 disabled:opacity-50">
-                                    <option value="" disabled>{adminPushData.targetUid ? 'Selecteer een schap...' : 'Kies eerst een gebruiker'}</option>
-                                    {adminPushShelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
+                            {adminPushData.type === 'book' && (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-bold text-stone-700 mb-2">Kies hun Schap</label>
+                                    <select required disabled={!adminPushData.targetUid} value={adminPushData.targetShelfId} onChange={e => setAdminPushData({...adminPushData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500 disabled:opacity-50">
+                                        <option value="" disabled>{adminPushData.targetUid ? 'Selecteer een schap...' : 'Kies eerst een gebruiker'}</option>
+                                        {adminPushShelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                             
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setAdminPushData({ isOpen: false, book: null, targetUid: '', targetShelfId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
-                                <button type="submit" disabled={!adminPushData.targetUid || !adminPushData.targetShelfId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Push Boek</button>
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button type="button" onClick={() => setAdminPushData({ isOpen: false, type: 'book', item: null, targetUid: '', targetShelfId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" disabled={!adminPushData.targetUid || (adminPushData.type === 'book' && !adminPushData.targetShelfId)} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Push</button>
                             </div>
                         </form>
                     </div>
@@ -2324,74 +2392,6 @@ function BoekenApp() {
                                 </div>
                             </form>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Add Library Modal */}
-            {isLibraryModalOpen && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-6 bg-stone-50 flex-shrink-0"><h3 className="text-2xl font-black">Nieuwe Bibliotheek</h3></div>
-                        <form onSubmit={handleAddLibrary} className="p-6 overflow-y-auto hide-scrollbar">
-                            <label className="block text-sm font-bold text-stone-700 mb-1">Naam van Bieb / Locatie</label>
-                            <input type="text" required value={newLibrary.name} onChange={e => setNewLibrary({...newLibrary, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" placeholder="Bijv. Bieb Bekkevoort" />
-                            <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor label op boeken</label>
-                            <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
-                                {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setNewLibrary({...newLibrary, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newLibrary.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
-                                ))}
-                            </div>
-                            <div className="flex justify-end gap-3 mt-auto">
-                                <button type="button" onClick={() => setIsLibraryModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
-                                <button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Library Modal */}
-            {editLibraryData.isOpen && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0"><h3 className="text-2xl font-black">Bibliotheek Bewerken</h3></div>
-                        <form onSubmit={handleUpdateLibrary} className="p-6 overflow-y-auto hide-scrollbar">
-                            <label className="block text-sm font-bold text-stone-700 mb-1">Naam van Bieb / Locatie</label>
-                            <input type="text" required value={editLibraryData.name} onChange={e => setEditLibraryData({...editLibraryData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" />
-                            <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor label op boeken</label>
-                            <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
-                                {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setEditLibraryData({...editLibraryData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editLibraryData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
-                                ))}
-                            </div>
-                            <div className="flex justify-end gap-3 mt-auto"><button type="button" onClick={() => setEditLibraryData({ isOpen: false, id: '', name: '', color: 'bg-blue-500', _ownerUid: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Share Shelf Modal (Push) */}
-            {shareShelfData.isOpen && (
-                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Push / Delen</h3>
-                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" geforceerd naar een andere gebruiker.</p>
-                        </div>
-                        <form onSubmit={handleShareShelfSubmit} className="p-6">
-                            <div className="mb-5">
-                                <label className="block text-sm font-bold text-stone-700 mb-2">E-mailadres ontvanger</label>
-                                <input type="email" required value={shareShelfData.email} onChange={e => setShareShelfData({...shareShelfData, email: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 focus:bg-white outline-none focus:border-amber-500" placeholder="bijv. naam@email.com" />
-                            </div>
-                            {shareShelfData.msg && <p className="text-red-500 font-bold mb-4 text-sm bg-red-50 p-3 rounded-lg border border-red-100">{shareShelfData.msg}</p>}
-                            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
-                                <button type="button" onClick={() => setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
-                                <button type="submit" disabled={shareShelfData.loading} className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 justify-center">
-                                    {shareShelfData.loading ? 'Bezig...' : 'Deel Schap'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}
