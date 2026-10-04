@@ -6,7 +6,8 @@ import {
     BarChart, AlertCircle, Check, Info, LogOut, Users, Shield, ArrowLeftRight,
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
-    Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag
+    Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
+    Headphones, Tablet, Play, Square
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -35,37 +36,26 @@ const toDateString = (dateObj) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// Uitgebreid palet aan kleuren voor schappen (inclusief grijs, pastel, zwart, wit, bruin)
 const SHELF_COLORS = [
-    // Zwart, Wit & Grijstinten
     'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
     'bg-slate-500', 'bg-zinc-500', 'bg-stone-500', 'bg-gray-500',
-    'bg-slate-300', 'bg-zinc-300', 'bg-stone-300', 'bg-gray-200', 
-    'bg-white',
-    // Bruintinten
+    'bg-slate-300', 'bg-zinc-300', 'bg-stone-300', 'bg-gray-200', 'bg-white',
     'bg-orange-900', 'bg-amber-900', 'bg-yellow-900', 'bg-stone-700', 'bg-stone-800', 'bg-orange-800',
-    // Pasteltinten
     'bg-red-200', 'bg-orange-200', 'bg-amber-200', 'bg-yellow-200', 
     'bg-lime-200', 'bg-green-200', 'bg-emerald-200', 'bg-teal-200', 
     'bg-cyan-200', 'bg-sky-200', 'bg-blue-200', 'bg-indigo-200', 
     'bg-violet-200', 'bg-purple-200', 'bg-fuchsia-200', 'bg-pink-200', 'bg-rose-200',
-    // Rood & Oranje
     'bg-red-400', 'bg-red-500', 'bg-red-600',
     'bg-orange-400', 'bg-orange-500', 'bg-orange-600',
-    // Geel & Amber
     'bg-amber-400', 'bg-amber-500', 'bg-amber-600',
     'bg-yellow-400', 'bg-yellow-500', 'bg-yellow-600',
-    // Groen
     'bg-lime-400', 'bg-lime-500', 'bg-lime-600',
     'bg-green-400', 'bg-green-500', 'bg-green-600',
     'bg-emerald-400', 'bg-emerald-500', 'bg-emerald-600',
-    // Cyaan & Teal
     'bg-teal-400', 'bg-teal-500', 'bg-teal-600',
     'bg-cyan-400', 'bg-cyan-500', 'bg-cyan-600',
-    // Blauw
     'bg-sky-400', 'bg-sky-500', 'bg-sky-600',
     'bg-blue-400', 'bg-blue-500', 'bg-blue-600',
-    // Paars & Roze
     'bg-indigo-400', 'bg-indigo-500', 'bg-indigo-600',
     'bg-violet-400', 'bg-violet-500', 'bg-violet-600',
     'bg-purple-400', 'bg-purple-500', 'bg-purple-600',
@@ -75,15 +65,63 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "15.0.0", date: "Oktober 2026", changes: ["⏱️ Ingebouwde Leestimer (Stopwatch) toegevoegd", "🎧 Formaat Selectie: Fysiek, E-Book en Audioboek (met minuten i.p.v. pagina's)", "📚 Boekenreeksen: Reeks en deelnummer toevoegen", "Lay-out van Gelezen-knop geperfectioneerd voor computer"] },
     { version: "13.0.0", date: "Oktober 2026", changes: ["Gigantische vlammetjes-streak kalender op computers", "Spatie-bug gefixt in mobiel menu (BoekenPlank)", "Tags, Quote Generator en Gekleurde Schappen"] },
-    { version: "12.1.0", date: "Oktober 2026", changes: ["Gigantische uitbreiding van kleurenpalet voor schappen (50+ tinten!)", "Kleur-kiezer pop-up scrolbaar gemaakt voor smartphones"] },
     { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots"] },
     { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
     { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen"] },
 ];
 
+function ReadingTimer({ book, onSave }) {
+    const [seconds, setSeconds] = useState(0);
+    const [isRunning, setIsRunning] = useState(false);
+    const [endPage, setEndPage] = useState(book.pagesRead || 0);
+
+    useEffect(() => {
+        let interval;
+        if (isRunning) {
+            interval = setInterval(() => {
+                setSeconds(prev => prev + 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [isRunning]);
+
+    const formatTime = (totalSeconds) => {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        return `${h > 0 ? h + ':' : ''}${h > 0 && m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const unit = book.format === 'audio' ? 'minuut' : 'pagina';
+
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-stone-50 rounded-2xl h-full border border-stone-200 shadow-inner">
+            <div className="text-5xl sm:text-7xl font-black text-amber-500 mb-8 font-mono tracking-wider drop-shadow-sm">{formatTime(seconds)}</div>
+            <div className="flex gap-4 mb-6">
+                {!isRunning ? (
+                    <button onClick={() => setIsRunning(true)} className="w-16 h-16 sm:w-20 sm:h-20 bg-stone-900 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform"><Play fill="currentColor" size={32}/></button>
+                ) : (
+                    <button onClick={() => setIsRunning(false)} className="w-16 h-16 sm:w-20 sm:h-20 bg-red-500 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform"><Square fill="currentColor" size={32}/></button>
+                )}
+            </div>
+            
+            {!isRunning && seconds > 0 && (
+                <div className="w-full max-w-xs bg-white p-5 rounded-2xl shadow-xl border border-stone-200 text-center animate-fade-in mt-4">
+                    <p className="font-bold text-stone-700 mb-3">Op welke {unit} ben je gestopt?</p>
+                    <input type="number" value={endPage} onChange={e => setEndPage(e.target.value)} className="w-full text-3xl font-black text-center border-2 border-stone-200 rounded-xl py-3 mb-4 bg-stone-50 focus:bg-white outline-none focus:border-amber-400 transition-colors" />
+                    <div className="flex gap-2">
+                        <button onClick={() => {setSeconds(0); setIsRunning(false); setEndPage(book.pagesRead);}} className="flex-1 px-3 py-3 text-stone-500 font-bold hover:bg-stone-100 rounded-xl text-sm transition-colors">Wissen</button>
+                        <button onClick={() => onSave(endPage, seconds)} className="flex-1 px-3 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md text-sm hover:bg-amber-600 transition-colors">Opslaan</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function BoekenApp() {
-    // Authenticatie & Profiel State
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -91,33 +129,29 @@ function BoekenApp() {
     const [allUsers, setAllUsers] = useState([]);
     const [dbError, setDbError] = useState(false);
 
-    // Impersonation State & Mobile Menu
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
 
-    // App Data State
     const [books, setBooks] = useState([]);
     const [shelves, setShelves] = useState([]);
     const [stats, setStats] = useState({ currentStreak: 0, lastReadDate: null });
     const [readingLogs, setReadingLogs] = useState([]); 
     const [searchQuery, setSearchQuery] = useState('');
 
-    // UI State
     const [activeTab, setActiveTab] = useState('schappen');
     const [collapsedShelves, setCollapsedShelves] = useState([]); 
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     
-    // Modal & Book States
     const [selectedBook, setSelectedBook] = useState(null); 
-    const [bookModalTab, setBookModalTab] = useState('overzicht'); // 'overzicht', 'notities', 'uitleen'
+    const [bookModalTab, setBookModalTab] = useState('overzicht'); // 'overzicht', 'notities', 'uitleen', 'leessessie'
     const [isEditingBook, setIsEditingBook] = useState(false);
     const [editBookData, setEditBookData] = useState(null);
     const [newNote, setNewNote] = useState({ text: '', type: 'quote' });
     const [lendData, setLendData] = useState({ name: '', date: getTodayString() });
-    const [quoteCard, setQuoteCard] = useState(null); // Voor de screenshot generator
+    const [quoteCard, setQuoteCard] = useState(null);
 
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -125,23 +159,19 @@ function BoekenApp() {
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
     const [isDragMode, setIsDragMode] = useState(false);
 
-    // States voor Kalender & Streak Navigatie
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '' });
     const [shareShelfData, setShareShelfData] = useState({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
     const [streakWeekOffset, setStreakWeekOffset] = useState(0);
 
-    // Autocomplete State
     const [titleSuggestions, setTitleSuggestions] = useState([]);
     const [isSearchingTitle, setIsSearchingTitle] = useState(false);
 
-    // Form States
-    const initialBookState = { title: '', author: '', shelfId: '', cover: '', isbn: '', totalPages: '', pagesRead: 0, tags: '' };
+    const initialBookState = { title: '', author: '', shelfId: '', cover: '', isbn: '', totalPages: '', pagesRead: 0, tags: '', format: 'fysiek', seriesName: '', seriesNumber: '' };
     const [newBook, setNewBook] = useState(initialBookState);
     const [newShelf, setNewShelf] = useState({ name: '', description: '', color: 'bg-amber-500' });
     const [editShelfData, setEditShelfData] = useState({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' });
     
-    // Refs
     const scannerRef = useRef(null);
     const searchTimeoutRef = useRef(null);
 
@@ -327,6 +357,9 @@ function BoekenApp() {
             totalPages: parseInt(newBook.totalPages) || 0, 
             pagesRead: parseInt(newBook.pagesRead) || 0, 
             tags: newBook.tags || '',
+            format: newBook.format || 'fysiek',
+            seriesName: newBook.seriesName || '',
+            seriesNumber: newBook.seriesNumber || '',
             rating: 0, 
             review: '', 
             notes: [],
@@ -339,7 +372,17 @@ function BoekenApp() {
 
     const handleUpdateBookDetails = async (e) => {
         e.preventDefault(); if (!activeUserId || !editBookData.id) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', editBookData.id), { title: editBookData.title, author: editBookData.author, cover: editBookData.cover, tags: editBookData.tags || '', totalPages: parseInt(editBookData.totalPages) || 0, shelfId: editBookData.shelfId });
+        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', editBookData.id), { 
+            title: editBookData.title, 
+            author: editBookData.author, 
+            cover: editBookData.cover, 
+            tags: editBookData.tags || '', 
+            format: editBookData.format || 'fysiek',
+            seriesName: editBookData.seriesName || '',
+            seriesNumber: editBookData.seriesNumber || '',
+            totalPages: parseInt(editBookData.totalPages) || 0, 
+            shelfId: editBookData.shelfId 
+        });
         setSelectedBook(p => ({...p, ...editBookData})); setIsEditingBook(false);
     };
 
@@ -604,7 +647,6 @@ function BoekenApp() {
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
-            // GIGANTISCH op computer, compact op mobiel
             days.push(
                 <div key={i} className="flex flex-col items-center gap-1 md:gap-3 min-w-[28px] sm:min-w-[32px] md:min-w-[70px]">
                     <div className={`w-7 h-7 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
@@ -630,7 +672,6 @@ function BoekenApp() {
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
-            {/* Header Mobiel & Admin */}
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {impersonatedUser && (
                     <div className="bg-red-600 text-white px-4 py-2 flex justify-between items-center shadow-md animate-pulse">
@@ -639,7 +680,6 @@ function BoekenApp() {
                     </div>
                 )}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
-                    {/* ZONDER SPATIE BOEKENPLANK */}
                     <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                 </div>
@@ -650,7 +690,6 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
-                {/* Zijbalk Menu */}
                 <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
@@ -687,44 +726,46 @@ function BoekenApp() {
                     </div>
                 </nav>
 
-                {/* Hoofd Content Area */}
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
-<div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-start gap-4">
-                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
-                                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1">
-                                                    <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
-                                                        {stats.currentStreak} 
-                                                        <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
-                                                    </p>
-                                                    
-                                                    {/* Knop speciaal voor op de computer (verborgen op mobiel) */}
-                                                    <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-3 w-full px-4 py-2 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                                        {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
-                                                    </button>
-                                                </div>
+                                
+                                {/* GEPERFECTIONEERDE LEES STREAK WIDGET (Knop correct onder 1 dagen gezet op computer) */}
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-6">
+                                    
+                                    {/* Linkerdeel: Vlammetje + Tekst + Knop (Computer) */}
+                                    <div className="flex flex-col gap-3 w-full lg:w-auto min-w-[220px]">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
+                                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                                <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                    {stats.currentStreak} 
+                                                    <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                                </p>
                                             </div>
                                         </div>
                                         
-                                        {/* Divider iets groter gemaakt om perfect uit te lijnen met de nieuwe knop */}
-                                        <div className="hidden sm:block w-px h-16 md:h-28 bg-stone-200 mx-2 md:mx-6"></div>
-                                        
-                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
-                                            {renderWeeklyStreak()}
-                                        </div>
+                                        {/* Desktop Button (Verhuist netjes recht onder de dagen!) */}
+                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-1 w-full px-4 py-2.5 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
+                                        </button>
                                     </div>
                                     
-                                    {/* Knop speciaal voor op de mobiel (verborgen op computer) */}
-                                    <div className="w-full lg:hidden flex justify-end mt-2 lg:mt-0">
+                                    {/* Middenlijn (Alleen Desktop) */}
+                                    <div className="hidden lg:block w-px h-24 bg-stone-200 mx-2"></div>
+                                    
+                                    {/* Rechterdeel: Weekoverzicht */}
+                                    <div className="w-full lg:flex-1 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex justify-start lg:justify-center">
+                                        {renderWeeklyStreak()}
+                                    </div>
+
+                                    {/* Mobiele knop */}
+                                    <div className="w-full lg:hidden flex justify-end mt-2">
                                         <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
                                             {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
                                         </button>
@@ -751,7 +792,6 @@ function BoekenApp() {
                             </div>
                         )}
 
-                        {/* Schappen met Kleur en Inklappen */}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -967,7 +1007,7 @@ function BoekenApp() {
                 </main>
             </div>
 
-            {}
+            {/* Boek Toevoegen Modal (Met Formaat & Reeks) */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -987,23 +1027,35 @@ function BoekenApp() {
                                 </div>
                                 <p className="text-[9px] text-amber-700 mt-2 font-medium">Lukt scannen niet? Typ de cijfers over. Werkt zoeken niet door een blokkade? Gebruik dan de Google-knoppen hieronder.</p>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
-                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken tegelijk op jouw WiFi).</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
                             </div>
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                
+                                {/* Formaat Selectie Knoppen */}
+                                <div className="sm:col-span-2">
+                                    <label className="block text-xs font-bold text-stone-700 mb-2">Formaat</label>
+                                    <div className="flex gap-2">
+                                        {['fysiek', 'ebook', 'audio'].map(fmt => (
+                                            <button type="button" key={fmt} onClick={() => setNewBook({...newBook, format: fmt})} 
+                                                className={`flex-1 flex justify-center items-center gap-1 sm:gap-2 py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${newBook.format === fmt ? 'bg-amber-100 border-amber-500 text-amber-900 shadow-sm' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}>
+                                                {fmt === 'fysiek' && <Book size={16}/>}
+                                                {fmt === 'ebook' && <Tablet size={16}/>}
+                                                {fmt === 'audio' && <Headphones size={16}/>}
+                                                <span className="capitalize">{fmt === 'audio' ? 'Audioboek' : fmt}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                                     <div className="sm:col-span-2 relative">
-                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
+                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel (typt voor suggesties) *</label>
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit" />
                                         
-                                        {/* De nieuwe handmatige 'Plan B' Google knoppen */}
                                         {newBook.title && (
                                             <div className="flex flex-wrap gap-2 mt-2 z-10 relative">
-                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm">
-                                                    <Search size={12} className="mr-1"/> Zoek Kaft op Google
-                                                </a>
-                                                <a href={`https://www.google.be/search?tbm=bks&q=${encodeURIComponent(newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-stone-100 text-stone-600 hover:bg-stone-200 px-2 py-1.5 rounded-md border border-stone-200 font-bold flex items-center transition-colors shadow-sm">
-                                                    <Search size={12} className="mr-1"/> Zoek Boek Info
-                                                </a>
+                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm"><Search size={12} className="mr-1"/> Zoek Kaft op Google</a>
+                                                <a href={`https://www.google.be/search?tbm=bks&q=${encodeURIComponent(newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-stone-100 text-stone-600 hover:bg-stone-200 px-2 py-1.5 rounded-md border border-stone-200 font-bold flex items-center transition-colors shadow-sm"><Search size={12} className="mr-1"/> Zoek Boek Info</a>
                                             </div>
                                         )}
 
@@ -1016,20 +1068,11 @@ function BoekenApp() {
 
                                         {titleSuggestions.length > 0 && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
-                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
-                                                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p>
-                                                </div>
+                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200"><p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p></div>
                                                 {titleSuggestions.map((item, idx) => (
                                                     <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-3 transition-colors">
-                                                        {item.cover ? (
-                                                            <img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />
-                                                        ) : (
-                                                            <div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>
-                                                        )}
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="font-bold text-sm text-stone-800 truncate">{item.title}</p>
-                                                            <p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p>
-                                                        </div>
+                                                        {item.cover ? (<img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />) : (<div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>)}
+                                                        <div className="flex-1 min-w-0"><p className="font-bold text-sm text-stone-800 truncate">{item.title}</p><p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p></div>
                                                         <Plus size={16} className="text-amber-500 flex-shrink-0 opacity-50" />
                                                     </div>
                                                 ))}
@@ -1038,15 +1081,26 @@ function BoekenApp() {
                                     </div>
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Auteur" /></div>
                                     
-                                    {/* Labels & Genres Input */}
+                                    {/* Series Input */}
+                                    <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-stone-700 mb-1">Reeks / Serie</label>
+                                            <input type="text" value={newBook.seriesName} onChange={e => setNewBook({...newBook, seriesName: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Harry Potter" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-stone-700 mb-1">Deelnummer</label>
+                                            <input type="text" value={newBook.seriesNumber} onChange={e => setNewBook({...newBook, seriesNumber: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. 3" />
+                                        </div>
+                                    </div>
+                                    
                                     <div className="sm:col-span-2">
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label>
                                         <input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Thriller, Magie (gescheiden met komma)" />
                                     </div>
 
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="300" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Al Gelezen</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal {newBook.format === 'audio' ? 'Minuten' : "Pagina's"}</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder={newBook.format === 'audio' ? '600' : '300'} /></div>
+                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">{newBook.format === 'audio' ? 'Geluisterde Minuten' : 'Al Gelezen'}</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
                                     <div className="sm:col-span-2">
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Plaats in Schap of Lijst *</label>
                                         <select required value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold bg-white outline-none text-sm">
@@ -1063,7 +1117,6 @@ function BoekenApp() {
                 </div>
             )}
 
-            {}
             {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -1121,6 +1174,7 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
+            {/* Book Details & Tabs Modal */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
@@ -1139,9 +1193,16 @@ function BoekenApp() {
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex-1 pr-2">
                                         <h3 className="text-xl sm:text-2xl font-black mb-1 leading-tight">{selectedBook.title}</h3>
+                                        
+                                        {/* Series Label */}
+                                        {selectedBook.seriesName && (
+                                            <div className="inline-block bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider mb-2 border border-orange-200 shadow-sm">
+                                                {selectedBook.seriesName} {selectedBook.seriesNumber ? `(Deel ${selectedBook.seriesNumber})` : ''}
+                                            </div>
+                                        )}
+                                        
                                         <p className="text-base sm:text-lg text-stone-500 font-medium">{selectedBook.author}</p>
                                         
-                                        {/* Tags rendering */}
                                         {selectedBook.tags && !isEditingBook && (
                                             <div className="flex flex-wrap gap-1 mt-2">
                                                 {selectedBook.tags.split(',').map(tag => tag.trim()).filter(Boolean).map((tag, i) => (
@@ -1160,10 +1221,11 @@ function BoekenApp() {
                                     </div>
                                 </div>
                                 
-                                {/* Tabs Navigatie */}
+                                {/* Tabs Navigatie met nieuwe Timer Tab */}
                                 {!isEditingBook && (
                                     <div className="flex gap-4 overflow-x-auto hide-scrollbar -mb-[1px]">
                                         <button onClick={() => setBookModalTab('overzicht')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${bookModalTab === 'overzicht' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>Overzicht</button>
+                                        <button onClick={() => setBookModalTab('leessessie')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1 ${bookModalTab === 'leessessie' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}><Clock size={14}/> Leessessie</button>
                                         <button onClick={() => setBookModalTab('notities')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1 ${bookModalTab === 'notities' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>Notities <span className="bg-stone-100 text-stone-500 text-[10px] px-1.5 py-0.5 rounded-full">{selectedBook.notes?.length || 0}</span></button>
                                         <button onClick={() => setBookModalTab('uitleen')} className={`pb-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1 ${bookModalTab === 'uitleen' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>
                                             Uitleenbeheer {selectedBook.lentTo && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}
@@ -1179,13 +1241,31 @@ function BoekenApp() {
                                             <h4 className="font-bold text-amber-900">Boekgegevens wijzigen</h4>
                                             <button type="button" onClick={() => setIsEditingBook(false)} className="text-amber-700 hover:text-amber-900"><X size={20}/></button>
                                         </div>
+                                        
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-bold text-stone-700 mb-2">Formaat</label>
+                                            <div className="flex gap-2">
+                                                {['fysiek', 'ebook', 'audio'].map(fmt => (
+                                                    <button type="button" key={fmt} onClick={() => setEditBookData({...editBookData, format: fmt})} 
+                                                        className={`flex-1 flex justify-center items-center gap-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${editBookData.format === fmt ? 'bg-amber-100 border-amber-500 text-amber-900 shadow-sm' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}>
+                                                        {fmt === 'fysiek' && <Book size={14}/>}{fmt === 'ebook' && <Tablet size={14}/>}{fmt === 'audio' && <Headphones size={14}/>}
+                                                        <span className="capitalize">{fmt === 'audio' ? 'Audioboek' : fmt}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Titel</label><input type="text" required value={editBookData.title} onChange={e => setEditBookData({...editBookData, title: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={editBookData.author} onChange={e => setEditBookData({...editBookData, author: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         
-                                        {/* Edit Tags Input */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div><label className="block text-xs font-bold text-stone-700 mb-1">Reeks / Serie</label><input type="text" value={editBookData.seriesName || ''} onChange={e => setEditBookData({...editBookData, seriesName: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" placeholder="Harry Potter" /></div>
+                                            <div><label className="block text-xs font-bold text-stone-700 mb-1">Deel</label><input type="text" value={editBookData.seriesNumber || ''} onChange={e => setEditBookData({...editBookData, seriesNumber: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" placeholder="3" /></div>
+                                        </div>
+
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label><input type="text" value={editBookData.tags || ''} onChange={e => setEditBookData({...editBookData, tags: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" placeholder="Bijv. Thriller, Spanning" /></div>
-                                        
                                         <div><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL</label><input type="text" value={editBookData.cover || ''} onChange={e => setEditBookData({...editBookData, cover: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                        
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-xs font-bold text-stone-700 mb-1">Locatie</label>
@@ -1194,12 +1274,32 @@ function BoekenApp() {
                                                     {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
                                                 </select>
                                             </div>
-                                            <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
+                                            <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal {editBookData.format === 'audio' ? 'Minuten' : "Pagina's"}</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
                                         </div>
                                         <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-2 shadow-md"><Save size={18}/> Wijzigingen Opslaan</button>
                                     </form>
                                 ) : (
                                     <>
+                                        {/* TAB: LEESSESSIE (Nieuw) */}
+                                        {bookModalTab === 'leessessie' && (
+                                            <ReadingTimer 
+                                                book={selectedBook} 
+                                                onSave={async (endPage, timeInSeconds) => {
+                                                    await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { pagesRead: parseInt(endPage) });
+                                                    const origPages = parseInt(selectedBook.pagesRead) || 0;
+                                                    if (parseInt(endPage) > origPages) {
+                                                        const todayStr = getTodayString();
+                                                        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), {
+                                                            date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null
+                                                        }, { merge: true });
+                                                        await handleLogReading(true);
+                                                    }
+                                                    setSelectedBook({...selectedBook, pagesRead: parseInt(endPage)});
+                                                    setBookModalTab('overzicht');
+                                                }} 
+                                            />
+                                        )}
+
                                         {/* TAB: OVERZICHT */}
                                         {bookModalTab === 'overzicht' && (
                                             <div className="mt-auto space-y-4 flex-1 flex flex-col">
@@ -1213,7 +1313,6 @@ function BoekenApp() {
                                                     </div>
                                                 )}
 
-                                                {/* Star Rating UI for finished books */}
                                                 {isBookFinished(selectedBook) && (
                                                     <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
                                                         <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Star size={16}/> Jouw Beoordeling</h4>
@@ -1228,10 +1327,10 @@ function BoekenApp() {
                                                 )}
 
                                                 <form onSubmit={handleUpdateProgress} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm mt-auto">
-                                                    <label className="block text-sm font-bold text-stone-700 mb-3">Leesvoortgang updaten</label>
+                                                    <label className="block text-sm font-bold text-stone-700 mb-3">{selectedBook.format === 'audio' ? 'Luistervoortgang updaten' : 'Leesvoortgang updaten'}</label>
                                                     <div className="flex items-center gap-4 mb-4">
                                                         <input type="number" min="0" max={selectedBook.totalPages || 9999} required value={selectedBook.pagesRead} onChange={e => setSelectedBook({...selectedBook, pagesRead: e.target.value})} className="w-24 text-2xl font-black border-2 rounded-xl px-3 py-2 outline-none text-center bg-stone-50 focus:bg-white" />
-                                                        <span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} pag.</span>
+                                                        <span className="text-stone-500 font-bold">van {selectedBook.totalPages || '?'} {selectedBook.format === 'audio' ? 'min.' : 'pag.'}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-100">
                                                         <button type="button" onClick={handleDeleteBook} className="text-red-500 p-3 rounded-xl hover:bg-red-50"><Trash2 size={24} /></button>
@@ -1265,7 +1364,6 @@ function BoekenApp() {
                                                                 {note.type === 'quote' ? (
                                                                     <>
                                                                         <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
-                                                                        {/* Knop voor Screenshot Quote Generator */}
                                                                         <button onClick={() => setQuoteCard({text: note.text, author: selectedBook.author, title: selectedBook.title, cover: selectedBook.cover})} className="mt-3 ml-6 bg-stone-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-amber-500 transition-colors"><Camera size={12}/> Mooie Quote-kaart maken</button>
                                                                     </>
                                                                 ) : (
@@ -1318,14 +1416,12 @@ function BoekenApp() {
                 </div>
             )}
 
-            {}
             {/* Mooie Quote-Kaart Screenshot Modal */}
             {quoteCard && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
                     
                     <div className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800">
-                        {/* Background */}
                         {quoteCard.cover ? (
                             <>
                                 <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110" style={{ backgroundImage: `url(${quoteCard.cover})` }}></div>
@@ -1334,8 +1430,6 @@ function BoekenApp() {
                         ) : (
                             <div className="absolute inset-0 bg-gradient-to-br from-stone-800 to-black"></div>
                         )}
-                        
-                        {/* Content */}
                         <div className="relative z-10 flex flex-col items-center justify-center h-full text-white w-full">
                             <Quote size={48} className="text-amber-400 mb-6 opacity-80"/>
                             <p className="text-xl sm:text-2xl font-serif italic font-medium leading-relaxed mb-6 break-words">"{quoteCard.text}"</p>
@@ -1360,17 +1454,14 @@ function BoekenApp() {
                         <form onSubmit={handleAddShelf} className="p-6 overflow-y-auto hide-scrollbar">
                             <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                             <input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" placeholder="Bijv. Fantasy" />
-                            
                             <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
                             <textarea value={newShelf.description} onChange={e => setNewShelf({...newShelf, description: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
-                            
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
                                     <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
-                            
                             <div className="flex justify-end gap-3 mt-auto">
                                 <button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
                                 <button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button>
@@ -1388,24 +1479,20 @@ function BoekenApp() {
                         <form onSubmit={handleUpdateShelf} className="p-6 overflow-y-auto hide-scrollbar">
                             <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                             <input type="text" required value={editShelfData.name} onChange={e => setEditShelfData({...editShelfData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" />
-                            
                             <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
                             <textarea value={editShelfData.description} onChange={e => setEditShelfData({...editShelfData, description: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
-                            
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
                                     <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
-
                             <div className="flex justify-end gap-3 mt-auto"><button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
@@ -1429,10 +1516,24 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                     >
                         <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200/50">
                             {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" draggable="false" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-2 text-center"><Book className="text-stone-300 mb-1" size={24} /></div>)}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} p.</p></div>
-                            {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full shadow-md"><Check size={12} strokeWidth={4} /></div>)}
-                            {book.shelfId === 'wishlist' && (<div className="absolute top-1.5 left-1.5 bg-amber-500 text-white p-1 rounded-full"><Star size={12} fill="white" strokeWidth={0} /></div>)}
-                            {book.lentTo && !isFinished && (<div className="absolute top-1.5 right-1.5 bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
+                            
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform">
+                                <p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} {book.format === 'audio' ? 'm.' : 'p.'}</p>
+                            </div>
+                            
+                            {/* Icoontjes in de linker bovenhoek */}
+                            <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                                {book.shelfId === 'wishlist' && (<div className="bg-amber-500 text-white p-1.5 rounded-full shadow-md"><Star size={12} fill="white" strokeWidth={0} /></div>)}
+                                {book.format === 'audio' && (<div className="bg-purple-500 text-white p-1.5 rounded-full shadow-md"><Headphones size={12} /></div>)}
+                                {book.format === 'ebook' && (<div className="bg-blue-500 text-white p-1.5 rounded-full shadow-md"><Tablet size={12} /></div>)}
+                            </div>
+
+                            {/* Voltooid / Uitleen Icoontjes rechts */}
+                            <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
+                                {isFinished && (<div className="bg-green-500 text-white p-1 rounded-full shadow-md"><Check size={12} strokeWidth={4} /></div>)}
+                                {book.lentTo && !isFinished && (<div className="bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
+                            </div>
+
                             {isDragMode && (<div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center backdrop-blur-[1px]"><GripVertical size={32} className="text-white drop-shadow-md"/></div>)}
                         </div>
                         {!isDragMode && <div className="w-full bg-stone-200/80 rounded-full h-1 mb-1"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>}
@@ -1446,3 +1547,4 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<BoekenApp />);
+```eof
