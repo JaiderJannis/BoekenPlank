@@ -68,11 +68,11 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "25.0.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
     { version: "24.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] },
     { version: "23.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu volledige Schappen (inclusief alle boeken) én Bibliotheken met één klik pushen naar andere gebruikers!"] },
     { version: "22.0.0", date: "Oktober 2026", changes: ["'Bibliotheken' toegevoegd! Maak uitleenlocaties aan met eigen kleuren.", "Het 'Geleend' label toont nu de naam van de specifieke bibliotheek (in hun kleur) of vriend(in)."] },
-    { version: "21.0.0", date: "Oktober 2026", changes: ["'Samenvoegen' functionaliteit toegevoegd voor Admins: bekijk boeken van andere gebruikers naadloos samen met je eigen boeken, met duidelijke labels.", "Topbalk verwijderd en Admin-menu verplaatst naar de zijbalk."] },
-    { version: "20.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu gericht boeken 'pushen' (kopiëren) naar schappen van andere gebruikers.", "Vinkje toegevoegd bij boek-creatie: 'Ik heb dit boek geleend' mét visueel label."] }
+    { version: "21.0.0", date: "Oktober 2026", changes: ["'Samenvoegen' functionaliteit toegevoegd voor Admins: bekijk boeken van andere gebruikers naadloos samen met je eigen boeken, met duidelijke labels.", "Topbalk verwijderd en Admin-menu verplaatst naar de zijbalk."] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -136,6 +136,9 @@ function BoekenApp() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
     
+    // Essentiële variabele die bugs voorkomt
+    const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
+
     const [myBooks, setMyBooks] = useState([]);
     const [myShelves, setMyShelves] = useState([]);
     const [myLogs, setMyLogs] = useState([]);
@@ -151,7 +154,7 @@ function BoekenApp() {
     const shelves = [...myShelves, ...impShelves];
     const readingLogs = [...myLogs, ...impLogs];
     const allLibraries = [...myLibraries, ...impLibraries];
-    const stats = myStats;
+    const stats = myStats; 
     
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('az'); 
@@ -194,7 +197,7 @@ function BoekenApp() {
     const initialBookState = { title: '', author: '', shelfId: '', cover: '', isbn: '', totalPages: '', pagesRead: 0, tags: '', format: 'fysiek', seriesName: '', seriesNumber: '', isBorrowed: false, borrowedLibraryId: '', borrowedPerson: '' };
     const [newBook, setNewBook] = useState(initialBookState);
     const [newShelf, setNewShelf] = useState({ name: '', description: '', color: 'bg-amber-500', tags: '' });
-    const [editShelfData, setEditShelfData] = useState({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '' });
+    const [editShelfData, setEditShelfData] = useState({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '', _ownerUid: '' });
     
     const [newLibrary, setNewLibrary] = useState({ name: '', color: 'bg-blue-500' });
     const [editLibraryData, setEditLibraryData] = useState({ isOpen: false, id: '', name: '', color: 'bg-blue-500', _ownerUid: '' });
@@ -203,8 +206,6 @@ function BoekenApp() {
     const [importStats, setImportStats] = useState({ total: 0, current: 0 });
     const fileInputRef = useRef(null);
     const fileInputRefOcr = useRef(null);
-    
-    const scannerRef = useRef(null);
     const searchTimeoutRef = useRef(null);
 
     const [allowEmailInput, setAllowEmailInput] = useState('');
@@ -307,6 +308,7 @@ function BoekenApp() {
     };
 
     const handleLogout = async () => { await signOut(auth); setActiveTab('alle'); };
+    
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
@@ -605,38 +607,38 @@ function BoekenApp() {
     };
 
     const handleAddShelf = async (e) => {
-        e.preventDefault(); if (!user || !newShelf.name) return;
-        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', tags: newShelf.tags || '', order: myShelves.length, createdAt: new Date().toISOString() });
+        e.preventDefault(); if (!activeUserId || !newShelf.name) return;
+        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', tags: newShelf.tags || '', order: myShelves.length, createdAt: new Date().toISOString() });
         setNewShelf({ name: '', description: '', color: 'bg-amber-500', tags: '' }); setIsShelfModalOpen(false);
         showToast("Nieuw schap toegevoegd!");
     };
 
     const handleUpdateShelf = async (e) => {
-        e.preventDefault(); if(!user || !editShelfData.id) return;
-        const ownerUid = editShelfData._ownerUid || user.uid;
+        e.preventDefault(); if(!activeUserId || !editShelfData.id) return;
+        const ownerUid = editShelfData._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'shelves', editShelfData.id), { name: editShelfData.name, description: editShelfData.description, color: editShelfData.color, tags: editShelfData.tags || '' });
-        setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '' });
+        setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '', _ownerUid: '' });
         showToast("Schap succesvol bewerkt!");
     };
 
     const handleAddLibrary = async (e) => {
-        e.preventDefault(); if (!user || !newLibrary.name) return;
-        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'libraries'), { ...newLibrary, color: newLibrary.color || 'bg-blue-500', createdAt: new Date().toISOString() });
+        e.preventDefault(); if (!activeUserId || !newLibrary.name) return;
+        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'libraries'), { ...newLibrary, color: newLibrary.color || 'bg-blue-500', createdAt: new Date().toISOString() });
         setNewLibrary({ name: '', color: 'bg-blue-500' }); setIsLibraryModalOpen(false);
         showToast("Bibliotheek toegevoegd!");
     };
 
     const handleUpdateLibrary = async (e) => {
-        e.preventDefault(); if(!user || !editLibraryData.id) return;
-        const ownerUid = editLibraryData._ownerUid || user.uid;
+        e.preventDefault(); if(!activeUserId || !editLibraryData.id) return;
+        const ownerUid = editLibraryData._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'libraries', editLibraryData.id), { name: editLibraryData.name, color: editLibraryData.color });
         setEditLibraryData({ isOpen: false, id: '', name: '', color: 'bg-blue-500', _ownerUid: '' });
         showToast("Bibliotheek succesvol bewerkt!");
     };
 
     const handleDeleteLibrary = async (id, name, ownerUid) => {
-         if (!user) return;
-         const targetUid = ownerUid || user.uid;
+         if (!activeUserId) return;
+         const targetUid = ownerUid || activeUserId;
          requestConfirm(`Bibliotheek "${name}" definitief verwijderen?`, async () => { 
              await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'libraries', id)); 
              showToast("Bibliotheek verwijderd.", "info");
@@ -644,9 +646,9 @@ function BoekenApp() {
     };
 
     const handleAddBook = async (e) => {
-        e.preventDefault(); if (!user || !newBook.title || !newBook.shelfId) return;
+        e.preventDefault(); if (!activeUserId || !newBook.title || !newBook.shelfId) return;
         
-        let targetUid = user.uid;
+        let targetUid = activeUserId;
         if (newBook.shelfId !== 'wishlist') {
             const selectedShelf = shelves.find(s => s.id === newBook.shelfId);
             if (selectedShelf && selectedShelf._ownerUid) targetUid = selectedShelf._ownerUid;
@@ -676,8 +678,8 @@ function BoekenApp() {
     };
 
     const handleUpdateBookDetails = async (e) => {
-        e.preventDefault(); if (!user || !editBookData.id) return;
-        const ownerUid = editBookData._ownerUid || user.uid;
+        e.preventDefault(); if (!activeUserId || !editBookData.id) return;
+        const ownerUid = editBookData._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', editBookData.id), { 
             title: editBookData.title, 
             author: editBookData.author, 
@@ -697,8 +699,8 @@ function BoekenApp() {
     };
 
     const handleUpdateProgress = async (e) => {
-        e.preventDefault(); if (!user || !selectedBook) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        e.preventDefault(); if (!activeUserId || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         const bookRef = doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id);
         const newPages = parseInt(selectedBook.pagesRead) || 0;
         await updateDoc(bookRef, { pagesRead: newPages });
@@ -714,16 +716,16 @@ function BoekenApp() {
     };
     
     const handleUpdateReview = async () => {
-        if (!user || !selectedBook) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
         showToast("Jouw beoordeling is opgeslagen!");
     };
 
     const handleAddNote = async (e) => {
         e.preventDefault();
-        if (!user || !selectedBook || !newNote.text) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook || !newNote.text) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         const updatedNotes = [...(selectedBook.notes || []), { ...newNote, date: new Date().toISOString(), id: Date.now().toString() }];
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
         setSelectedBook({...selectedBook, notes: updatedNotes});
@@ -732,8 +734,8 @@ function BoekenApp() {
     };
 
     const handleDeleteNote = async (noteId) => {
-        if (!user || !selectedBook) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         requestConfirm("Weet je zeker dat je deze notitie wilt verwijderen?", async () => {
             const updatedNotes = (selectedBook.notes || []).filter(n => n.id !== noteId);
             await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
@@ -744,8 +746,8 @@ function BoekenApp() {
 
     const handleLendBook = async (e) => {
         e.preventDefault();
-        if (!user || !selectedBook || !lendData.name) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook || !lendData.name) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
         setSelectedBook({...selectedBook, lentTo: lendData.name, lentDate: lendData.date});
         setLendData({ name: '', date: getTodayString() });
@@ -753,16 +755,16 @@ function BoekenApp() {
     };
 
     const handleReturnBook = async () => {
-        if (!user || !selectedBook) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: null, lentDate: null });
         setSelectedBook({...selectedBook, lentTo: null, lentDate: null});
         showToast("Boek is weer terug!");
     };
 
     const handleDeleteBook = async () => {
-        if (!user || !selectedBook) return;
-        const ownerUid = selectedBook._ownerUid || user.uid;
+        if (!activeUserId || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || activeUserId;
         requestConfirm(`Weet je zeker dat je "${selectedBook.title}" wilt verwijderen?`, async () => {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id)); setSelectedBook(null);
             showToast("Boek definitief verwijderd.", "info");
@@ -770,8 +772,8 @@ function BoekenApp() {
     };
 
     const handleDeleteShelf = async (shelfId, shelfName, ownerUid) => {
-         if (!user) return;
-         const targetUid = ownerUid || user.uid;
+         if (!activeUserId) return;
+         const targetUid = ownerUid || activeUserId;
          const shelfBooks = books.filter(b => b.shelfId === shelfId);
          if(shelfBooks.length > 0) { requestConfirm(`Let op: Er zitten nog ${shelfBooks.length} boeken in "${shelfName}". Verwijder of verplaats deze eerst!`, () => {}); return; }
          requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { 
@@ -781,7 +783,7 @@ function BoekenApp() {
     };
 
     const handleMoveShelf = async (index, direction) => {
-        if (!user) return;
+        if (!activeUserId) return;
         const sortedMyShelves = [...myShelves].sort((a, b) => (a.order || 0) - (b.order || 0));
         if (index + direction < 0 || index + direction >= sortedMyShelves.length) return;
         
@@ -791,7 +793,7 @@ function BoekenApp() {
         
         for (let i = 0; i < sortedMyShelves.length; i++) {
             if (sortedMyShelves[i].order !== i) {
-                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', sortedMyShelves[i].id), { order: i });
+                await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', sortedMyShelves[i].id), { order: i });
             }
         }
     };
@@ -801,12 +803,12 @@ function BoekenApp() {
     };
 
     const onDropBookToShelf = async (e, shelfId) => {
-        if(!isDragMode || !user) return;
+        if(!isDragMode || !activeUserId) return;
         const bookId = e.dataTransfer.getData('bookId');
         if (bookId) {
             const book = books.find(b => b.id === bookId);
             if(!book) return;
-            const ownerUid = book._ownerUid || user.uid;
+            const ownerUid = book._ownerUid || activeUserId;
             await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', bookId), { shelfId });
             setIsDragMode(false); 
             showToast("Boek succesvol verplaatst!");
@@ -820,7 +822,7 @@ function BoekenApp() {
             let targetUid = null;
             allUsers.forEach(d => { if (d.email.toLowerCase() === shareShelfData.email.toLowerCase()) targetUid = d.uid; });
             if (!targetUid) return setShareShelfData(p => ({...p, loading: false, msg: 'Gebruiker niet gevonden in het systeem.'}));
-            if (targetUid === user.uid) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
+            if (targetUid === activeUserId) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
             const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
             if (shelfToCopy.sharedWith && shelfToCopy.sharedWith.some(s => s.uid === targetUid)) {
                 return setShareShelfData(p => ({...p, loading: false, msg: 'Dit schap is al gedeeld met deze gebruiker.'}));
@@ -829,7 +831,7 @@ function BoekenApp() {
             const booksToCopy = books.filter(b => b.shelfId === shareShelfData.shelfId);
             for (const b of booksToCopy) { await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'books'), { ...b, shelfId: newShelfRef.id, addedAt: new Date().toISOString() }); }
             const currentShared = shelfToCopy.sharedWith || [];
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
+            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
             setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
             showToast(`Schap succesvol gedeeld met ${shareShelfData.email}!`);
         } catch (err) { setShareShelfData(p => ({...p, loading: false, msg: 'Fout bij het delen.'})); }
@@ -843,7 +845,7 @@ function BoekenApp() {
                 targetBooksSnap.forEach(async (b) => { if (b.data().shelfId === shareObj.targetShelfId) await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'books', b.id)); });
                 const shelf = shelves.find(s => s.id === shelfId);
                 const newSharedWith = (shelf.sharedWith || []).filter(s => s.uid !== shareObj.uid);
-                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', shelfId), { sharedWith: newSharedWith });
+                await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId), { sharedWith: newSharedWith });
                 showToast(`Schap wordt niet meer gedeeld met ${shareObj.email}.`, "info");
             } catch (err) {}
         });
@@ -856,9 +858,9 @@ function BoekenApp() {
     };
 
     const handleRetroactiveLog = async (e) => {
-        e.preventDefault(); if (!user || !calendarLogData.bookId) return;
+        e.preventDefault(); if (!activeUserId || !calendarLogData.bookId) return;
         const book = books.find(b => b.id === calendarLogData.bookId); if (!book) return;
-        const targetUid = book._ownerUid || user.uid;
+        const targetUid = book._ownerUid || activeUserId;
 
         const newPages = parseInt(calendarLogData.pagesRead);
         if (!isNaN(newPages) && newPages !== parseInt(book.pagesRead)) {
@@ -872,8 +874,8 @@ function BoekenApp() {
     };
 
     const handleDeleteLog = async (logId, ownerUid) => {
-        if (!user) return;
-        const targetUid = ownerUid || user.uid;
+        if (!activeUserId) return;
+        const targetUid = ownerUid || activeUserId;
         requestConfirm("Weet je zeker dat je dit boek van deze dag wilt verwijderen?", async () => {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'readingLog', logId));
             showToast("Log succesvol verwijderd uit de kalender.", "info");
@@ -881,12 +883,12 @@ function BoekenApp() {
     };
 
     const handleUndoLogReading = async () => {
-        if (!user) return;
+        if (!activeUserId) return;
         requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
             const todayStr = getTodayString();
             const logsToDelete = myLogs.filter(log => log.date === todayStr);
             for (const log of logsToDelete) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'readingLog', log.id));
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', log.id));
             }
             showToast("Lees-streak geannuleerd.", "info");
         });
@@ -894,7 +896,7 @@ function BoekenApp() {
 
     const handleFileUpload = (event) => {
         const file = event.target.files[0];
-        if (!file || !user) return;
+        if (!file || !activeUserId) return;
         setIsImporting(true);
         
         Papa.parse(file, {
@@ -910,7 +912,7 @@ function BoekenApp() {
                     importedShelfId = existingShelf.id;
                 } else {
                     try {
-                        const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'shelves'), {
+                        const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), {
                             name: 'Geïmporteerd', description: 'Boeken toegevoegd via CSV import', color: 'bg-blue-500', order: myShelves.length, createdAt: new Date().toISOString()
                         });
                         importedShelfId = newShelfRef.id;
@@ -936,7 +938,7 @@ function BoekenApp() {
                     
                     const tags = row['Bookshelves'] || row['Tags'] || row['genres'] || '';
 
-                    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'books'), {
+                    await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), {
                         title,
                         author,
                         isbn: String(isbn).replace(/[^0-9X]/gi, ''),
@@ -974,6 +976,7 @@ function BoekenApp() {
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
+    // Dynamische Streak: Gebruikt ALLEEN myLogs om de admin's eigen streak accuraat te houden
     const myLogsByDate = myLogs.reduce((acc, log) => { 
         if (!acc[log.date]) acc[log.date] = []; 
         acc[log.date].push(log); 
@@ -1004,6 +1007,7 @@ function BoekenApp() {
     };
     const currentStreak = calculateDynamicStreak();
 
+    // Kalender: Gebruikt ALLE logs (Mijn + Impersonated)
     const allLogsByDate = readingLogs.reduce((acc, log) => { 
         if (!acc[log.date]) acc[log.date] = []; 
         acc[log.date].push(log); 
@@ -1113,6 +1117,7 @@ function BoekenApp() {
         );
     };
 
+    // Filter community users
     const displayCommunityUsers = allUsers.filter(u => {
         if (u.uid === user.uid) return false; 
         if (userData.role === 'admin') return true; 
@@ -1126,6 +1131,7 @@ function BoekenApp() {
 
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
+            
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 {userData && userData.role === 'admin' && (
                     <div className="bg-stone-900 border-b border-stone-700 text-white px-4 py-2 flex flex-col sm:flex-row justify-between items-center z-50 text-xs sm:text-sm">
@@ -1494,7 +1500,7 @@ function BoekenApp() {
                                                                 <h3 className="text-2xl font-black flex items-center gap-3">{shelf.name} <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
                                                             </div>
                                                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                                                {/* Public Book List Component */}
+                                                                {/* Public Book List Component (Reusing standard component but intercepting click) */}
                                                                 {shelfBooks.map(book => {
                                                                     const library = book.borrowedLibraryId && publicLibraries ? publicLibraries.find(l => l.id === book.borrowedLibraryId) : null;
                                                                     const badgeColor = library ? library.color : 'bg-blue-500';
@@ -1529,6 +1535,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {activeTab === 'beheer' && (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
@@ -1671,7 +1678,7 @@ function BoekenApp() {
                                     )}
                                 </div>
                                 
-                                {/* NIEUW: BEHEER BIBLIOTHEKEN / UITLEENLOCATIES */}
+                                {/* BEHEER BIBLIOTHEKEN / UITLEENLOCATIES */}
                                 <div className="mt-12 mb-6">
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                                         <div>
@@ -1811,6 +1818,7 @@ function BoekenApp() {
                 </main>
             </div>
 
+            {}
             {/* Boek Toevoegen Modal */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
@@ -1942,10 +1950,11 @@ function BoekenApp() {
                                             )}
                                         </select>
                                     </div>
-                                    <div className="sm:col-span-2 mt-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                                    
+                                    <div className="sm:col-span-2 mt-2 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
                                         <label className="flex items-center gap-2 text-sm font-bold text-blue-900 cursor-pointer">
                                             <input type="checkbox" checked={newBook.isBorrowed || false} onChange={e => setNewBook({...newBook, isBorrowed: e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer" />
-                                            Ik heb dit boek van iemand geleend
+                                            Ik heb dit boek geleend
                                         </label>
                                         {newBook.isBorrowed && (
                                             <div className="flex flex-col sm:flex-row gap-4 mt-4 animate-fade-in border-t border-blue-200/50 pt-4">
@@ -2120,7 +2129,7 @@ function BoekenApp() {
                                             <ReadingTimer 
                                                 book={selectedBook} 
                                                 onSave={async (endPage, timeInSeconds) => {
-                                                    const ownerUid = selectedBook._ownerUid || user.uid;
+                                                    const ownerUid = selectedBook._ownerUid || activeUserId;
                                                     await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { pagesRead: parseInt(endPage) });
                                                     const origPages = parseInt(selectedBook.pagesRead) || 0;
                                                     if (parseInt(endPage) > origPages) {
@@ -2251,6 +2260,41 @@ function BoekenApp() {
                 </div>
             )}
 
+            {/* Modal voor Kopiëren vanuit Ontdekken */}
+            {copyBookData.isOpen && copyBookData.book && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100">
+                            <h3 className="text-xl font-black flex items-center gap-2"><Copy size={20} className="text-amber-500"/> Boek Kopiëren</h3>
+                            <p className="text-sm text-stone-500 mt-1">Voeg "{copyBookData.book.title}" toe aan je eigen bibliotheek.</p>
+                        </div>
+                        <form onSubmit={handleCopyBookConfirm} className="p-6">
+                            <div className="flex gap-4 items-center mb-6">
+                                {copyBookData.book.cover ? <img src={copyBookData.book.cover} className="w-16 h-24 object-cover rounded shadow-md" /> : <div className="w-16 h-24 bg-stone-200 flex items-center justify-center rounded shadow-md"><Book className="text-stone-400"/></div>}
+                                <div>
+                                    <p className="font-bold text-stone-800">{copyBookData.book.title}</p>
+                                    <p className="text-sm text-stone-500">{copyBookData.book.author}</p>
+                                </div>
+                            </div>
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-stone-700 mb-2">In welk van JOUW schappen wil je dit zetten?</label>
+                                <select required value={copyBookData.targetShelfId} onChange={e => setCopyBookData({...copyBookData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
+                                    <option value="" disabled>Selecteer een schap...</option>
+                                    <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
+                                    <optgroup label="Mijn Schappen">
+                                        {myShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={() => setCopyBookData({ isOpen: false, book: null, targetShelfId: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" disabled={!copyBookData.targetShelfId} className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 disabled:opacity-50">Kopieer Boek</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Admin PUSH Modal (Boeken, Schappen, Bibliotheken) */}
             {adminPushData.isOpen && adminPushData.item && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -2308,7 +2352,7 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Retroactive Calendar Log Modal */}
+            {/* Retroactive Calendar Log Modal - INCLUSIEF BEWERKEN */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -2390,13 +2434,56 @@ function BoekenApp() {
                 </div>
             )}
 
-            {/* Share Shelf Modal */}
+            {/* Add Library Modal */}
+            {isLibraryModalOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 bg-stone-50 flex-shrink-0"><h3 className="text-2xl font-black">Nieuwe Bibliotheek</h3></div>
+                        <form onSubmit={handleAddLibrary} className="p-6 overflow-y-auto hide-scrollbar">
+                            <label className="block text-sm font-bold text-stone-700 mb-1">Naam van Bieb / Locatie</label>
+                            <input type="text" required value={newLibrary.name} onChange={e => setNewLibrary({...newLibrary, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" placeholder="Bijv. Bieb Bekkevoort" />
+                            <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor label op boeken</label>
+                            <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
+                                {SHELF_COLORS.map(c => (
+                                    <button type="button" key={c} onClick={() => setNewLibrary({...newLibrary, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newLibrary.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                ))}
+                            </div>
+                            <div className="flex justify-end gap-3 mt-auto">
+                                <button type="button" onClick={() => setIsLibraryModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
+                                <button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Library Modal */}
+            {editLibraryData.isOpen && (
+                <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0"><h3 className="text-2xl font-black">Bibliotheek Bewerken</h3></div>
+                        <form onSubmit={handleUpdateLibrary} className="p-6 overflow-y-auto hide-scrollbar">
+                            <label className="block text-sm font-bold text-stone-700 mb-1">Naam van Bieb / Locatie</label>
+                            <input type="text" required value={editLibraryData.name} onChange={e => setEditLibraryData({...editLibraryData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" />
+                            <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor label op boeken</label>
+                            <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
+                                {SHELF_COLORS.map(c => (
+                                    <button type="button" key={c} onClick={() => setEditLibraryData({...editLibraryData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editLibraryData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
+                                ))}
+                            </div>
+                            <div className="flex justify-end gap-3 mt-auto"><button type="button" onClick={() => setEditLibraryData({ isOpen: false, id: '', name: '', color: 'bg-blue-500', _ownerUid: '' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Share Shelf Modal (Push) */}
             {shareShelfData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
                         <div className="p-6 bg-stone-50 border-b border-stone-100">
-                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Delen</h3>
-                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" naar een andere gebruiker.</p>
+                            <h3 className="text-2xl font-black flex items-center gap-2"><Share2 size={24} className="text-amber-500"/> Schap Push / Delen</h3>
+                            <p className="text-sm text-stone-500 mt-1">Kopieer "{shareShelfData.shelfName}" geforceerd naar een andere gebruiker.</p>
                         </div>
                         <form onSubmit={handleShareShelfSubmit} className="p-6">
                             <div className="mb-5">
@@ -2445,6 +2532,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart, allLibraries }) {
                 const progress = book.totalPages > 0 ? Math.min(100, Math.round((book.pagesRead / book.totalPages) * 100)) : 0;
                 const isFinished = progress === 100 && book.totalPages > 0;
                 
+                // Bibliotheek Label Logica
                 const library = book.borrowedLibraryId && allLibraries ? allLibraries.find(l => l.id === book.borrowedLibraryId) : null;
                 const badgeColor = library ? library.color : 'bg-blue-500';
                 const badgeText = library ? library.name : (book.borrowedPerson ? `Van ${book.borrowedPerson}` : 'Geleend');
@@ -2464,18 +2552,21 @@ function BookList({ books, onSelect, isDragMode, onDragStart, allLibraries }) {
                                 <p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} {book.format === 'audio' ? 'm.' : 'p.'}</p>
                             </div>
                             
+                            {/* DYNAMISCH GELEEND LABEL */}
                             {book.isBorrowed && (
                                 <div className={`absolute top-1.5 left-1/2 transform -translate-x-1/2 text-white px-2 py-0.5 rounded-md shadow-md text-[8px] font-black tracking-widest uppercase z-10 flex items-center gap-1 whitespace-nowrap ${badgeColor}`}>
                                     <ArrowDown size={10} strokeWidth={3}/> {badgeText}
                                 </div>
                             )}
 
+                            {/* Icoontjes in de linker bovenhoek */}
                             <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
                                 {book.shelfId === 'wishlist' && (<div className="bg-amber-500 text-white p-1.5 rounded-full shadow-md"><Star size={12} fill="white" strokeWidth={0} /></div>)}
                                 {book.format === 'audio' && (<div className="bg-purple-500 text-white p-1.5 rounded-full shadow-md"><Headphones size={12} /></div>)}
                                 {book.format === 'ebook' && (<div className="bg-blue-500 text-white p-1.5 rounded-full shadow-md"><Tablet size={12} /></div>)}
                             </div>
 
+                            {/* Voltooid / Uitleen Icoontjes rechts */}
                             <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
                                 {isFinished && (<div className="bg-green-500 text-white p-1 rounded-full shadow-md"><Check size={12} strokeWidth={4} /></div>)}
                                 {book.lentTo && !isFinished && (<div className="bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
