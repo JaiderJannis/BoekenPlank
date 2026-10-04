@@ -38,9 +38,9 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "11.2.0", date: "Oktober 2026", changes: ["Bugfix: Leesstreak wordt nu correct automatisch gehaald als je pagina's updatet", "Gelezen boeken zijn nu weer zichtbaar in Alle Boeken en Schappen (met groen vinkje)", "Bewerk-knop is nu altijd volledig zichtbaar op smartphones"] },
     { version: "11.1.0", date: "Oktober 2026", changes: ["NIEUW: 'Plan B' handmatige Google Zoek-knoppen toegevoegd bij netwerk/API blokkades", "Verduidelijking toegevoegd bij falende ISBN scanner"] },
-    { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen", "Bugfix: Bewerk-knop is nu altijd zichtbaar op smartphones"] },
-    { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' en 'Gelezen' functionaliteit"] },
+    { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen"] },
 ];
 
 function BoekenApp() {
@@ -309,6 +309,8 @@ function BoekenApp() {
         if (newPages > (orig?.pagesRead || 0)) {
             const todayStr = getTodayString();
             await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
+            
+            // Streak automatisch updaten (silent = true)
             await handleLogReading(true);
         }
         
@@ -450,12 +452,21 @@ function BoekenApp() {
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' });
     };
 
+    // Fix voor de auto-update streak
     const handleLogReading = async (silent = false) => {
         if (!activeUserId) return;
         const today = new Date().toISOString();
         let streak = stats.currentStreak || 0;
-        if (isToday(stats.lastReadDate)) { if(!silent) return; }
-        else if (isYesterday(stats.lastReadDate)) streak += 1; else streak = 1;
+        
+        if (isToday(stats.lastReadDate)) { 
+            if (!silent) return; // Als we op de knop drukken en het is al vandaag, doe niets.
+            // Als we een boek updaten (silent = true) en we hebben al gelezen vandaag, houden we de streak gelijk.
+        } else if (isYesterday(stats.lastReadDate)) {
+            streak += 1; 
+        } else {
+            streak = 1; 
+        }
+        
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
     };
 
@@ -472,11 +483,19 @@ function BoekenApp() {
 
     // Filters voor lijsten
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
-    const activeUnfinishedBooks = books.filter(b => b.shelfId !== 'wishlist' && !isBookFinished(b));
-    const readBooks = books.filter(b => isBookFinished(b) && b.shelfId !== 'wishlist');
-    const wishlistBooks = books.filter(b => b.shelfId === 'wishlist');
+    
+    // Fix: Zorg dat gelezen boeken OVERAL zichtbaar blijven (behalve op de wensenlijst tab)
+    let baseBooks = books;
+    if (activeTab === 'wensenlijst') {
+        baseBooks = books.filter(b => b.shelfId === 'wishlist');
+    } else if (activeTab === 'gelezen') {
+        baseBooks = books.filter(b => isBookFinished(b) && b.shelfId !== 'wishlist');
+    } else {
+        // Zowel 'alle' als 'schappen' tonen alle boeken (gelezen + ongelezen) die NIET op de wensenlijst staan
+        baseBooks = books.filter(b => b.shelfId !== 'wishlist');
+    }
 
-    const filteredBooks = (activeTab === 'gelezen' ? readBooks : activeTab === 'wensenlijst' ? wishlistBooks : activeUnfinishedBooks).filter(b => 
+    const filteredBooks = baseBooks.filter(b => 
         b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         (b.author && b.author.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -686,7 +705,7 @@ function BoekenApp() {
                                                 </div>
                                                 {shelfBooks.length === 0 ? (
                                                     <div className={`p-8 text-center rounded-xl border-2 border-dashed ${isDragMode ? 'border-amber-300 bg-amber-50' : 'border-stone-200'}`}>
-                                                        <p className="text-stone-400 font-bold">{isDragMode ? 'Laat boek hier los!' : 'Geen ongelezen boeken in dit schap.'}</p>
+                                                        <p className="text-stone-400 font-bold">{isDragMode ? 'Laat boek hier los!' : 'Geen boeken in dit schap.'}</p>
                                                     </div>
                                                 ) : (
                                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
@@ -1049,7 +1068,7 @@ function BoekenApp() {
                                     <div className="flex items-center gap-1 sm:gap-2">
                                         {!isEditingBook && (
                                             <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
-                                                <Edit3 size={16}/> <span className="hidden sm:inline">Bewerk</span>
+                                                <Edit3 size={16}/> <span>Bewerk</span>
                                             </button>
                                         )}
                                         <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="hidden md:block bg-stone-100 hover:bg-stone-200 transition-colors p-2 rounded-xl"><X size={20} /></button>
@@ -1237,7 +1256,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                         <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200/50">
                             {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" draggable="false" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-2 text-center"><Book className="text-stone-300 mb-1" size={24} /></div>)}
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform"><p className="text-[9px] sm:text-[10px] text-white font-bold text-center">{book.pagesRead} / {book.totalPages || '?'} p.</p></div>
-                            {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full"><Check size={12} strokeWidth={4} /></div>)}
+                            {isFinished && (<div className="absolute top-1.5 right-1.5 bg-green-500 text-white p-1 rounded-full shadow-md"><Check size={12} strokeWidth={4} /></div>)}
                             {book.shelfId === 'wishlist' && (<div className="absolute top-1.5 left-1.5 bg-amber-500 text-white p-1 rounded-full"><Star size={12} fill="white" strokeWidth={0} /></div>)}
                             {book.lentTo && !isFinished && (<div className="absolute top-1.5 right-1.5 bg-blue-500 text-white p-1 rounded-full shadow-md"><UserCheck size={12} strokeWidth={3} /></div>)}
                             {isDragMode && (<div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center backdrop-blur-[1px]"><GripVertical size={32} className="text-white drop-shadow-md"/></div>)}
