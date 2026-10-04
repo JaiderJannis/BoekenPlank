@@ -263,7 +263,10 @@ function BoekenApp() {
 
     const handleSaveSession = async () => {
         const pagesReadDiff = parseInt(sessionEndPages) - parseInt(sessionStartPages);
-        if (pagesReadDiff < 0) return alert("Je eindpagina of minuut moet hoger zijn dan je startpunt!");
+        if (pagesReadDiff < 0) {
+            requestConfirm("Je eindpagina of minuut moet hoger zijn dan je startpunt!", () => {});
+            return;
+        }
 
         const newTotalPagesRead = parseInt(sessionEndPages);
 
@@ -282,7 +285,7 @@ function BoekenApp() {
         }
 
         const readType = selectedBook.format === 'Audioboek' ? 'minuten geluisterd' : "pagina's gelezen";
-        alert(`Sessie opgeslagen! Je hebt ${pagesReadDiff} ${readType} in ${formatTime(timerSeconds)}.`);
+        requestConfirm(`Sessie opgeslagen! Je hebt ${pagesReadDiff} ${readType} in ${formatTime(timerSeconds)}.`, () => {});
         handleResetTimer();
     };
 
@@ -441,7 +444,7 @@ function BoekenApp() {
     const handleUpdateReview = async () => {
         if (!activeUserId || !selectedBook) return;
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
-        alert("Beoordeling opgeslagen!");
+        requestConfirm("Beoordeling opgeslagen!", () => {});
     };
 
     const handleAddNote = async (e) => {
@@ -723,6 +726,7 @@ function BoekenApp() {
                 </div>
             </div>
 
+            {}
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
                 {isMobileMenuOpen && (
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -764,6 +768,7 @@ function BoekenApp() {
                     </div>
                 </nav>
 
+                {}
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
@@ -829,6 +834,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -881,6 +887,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {(activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="bg-white rounded-3xl p-5 shadow-md border border-stone-200/60">
                                 {filteredBooks.length === 0 ? (
@@ -920,6 +927,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {activeTab === 'beheer' && (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
@@ -974,6 +982,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {activeTab === 'changelog' && (
                             <div className="max-w-3xl mx-auto space-y-6">
                                 <h2 className="text-3xl font-black flex items-center gap-3"><History className="text-amber-500" size={36}/> Versiegeschiedenis</h2>
@@ -1043,7 +1052,7 @@ function BoekenApp() {
                     </div>
                 </main>
 
-            {/* Boek Toevoegen Modal (Compacter gemaakt voor smartphone) */}
+            {}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
@@ -1136,6 +1145,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {}
             {/* Retroactive Calendar Log Modal */}
             {calendarLogData.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
@@ -1188,6 +1198,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {}
             {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
@@ -1333,6 +1344,7 @@ function BoekenApp() {
                                             </div>
                                         )}
 
+                                        {}
                                         {/* TAB: LEESSESSIE (TIMER) */}
                                         {bookModalTab === 'leessessie' && (
                                             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white border border-stone-200 rounded-3xl shadow-inner relative">
@@ -1418,6 +1430,7 @@ function BoekenApp() {
                                             </div>
                                         )}
 
+                                        {}
                                         {/* TAB: UITLEEN BEHEER */}
                                         {bookModalTab === 'uitleen' && (
                                             <div className="flex-1 flex flex-col">
@@ -1457,6 +1470,7 @@ function BoekenApp() {
                 </div>
             )}
 
+            {}
             {/* Mooie Quote-Kaart Screenshot Modal */}
             {quoteCard && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
@@ -1542,7 +1556,7 @@ function BoekenApp() {
 
 function BookList({ books, onSelect, isDragMode, onDragStart }) {
     return (
-        <React.Fragment>
+        <>
             {books.map(book => {
                 const progress = book.totalPages > 0 ? Math.min(100, Math.round((book.pagesRead / book.totalPages) * 100)) : 0;
                 const isFinished = progress === 100 && book.totalPages > 0;
@@ -1572,7 +1586,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                     </div>
                 );
             })}
-        </React.Fragment>
+        </>
     );
 }
 
