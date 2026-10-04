@@ -821,32 +821,28 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
-                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-start gap-4">
-                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
-                                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1">
-                                                    <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
-                                                        {stats.currentStreak} 
-                                                        <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
-                                                    </p>
-                                                    
-                                                    <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-3 w-full px-4 py-2 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                                        {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
-                                                    </button>
-                                                </div>
-                                            </div>
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-6 overflow-hidden">
+                                    <div className="flex items-start gap-4 shrink-0 w-full lg:w-auto">
+                                        <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1 shrink-0">
+                                            <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
                                         </div>
-                                        
-                                        <div className="hidden sm:block w-px h-16 md:h-28 bg-stone-200 mx-2 md:mx-6"></div>
-                                        
-                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
-                                            {renderWeeklyStreak()}
+                                        <div className="flex flex-col flex-1 lg:flex-none">
+                                            <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                            <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                {stats.currentStreak} 
+                                                <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                            </p>
+                                            
+                                            <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-3 w-full px-4 py-2 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                                {hasReadToday ? <><CheckCircle2 size={18} className="shrink-0"/> <span className="truncate">Gelezen Vandaag</span> <span className="text-[10px] text-stone-400 font-normal underline shrink-0">(Uitvinken)</span></> : 'Gelezen!'}
+                                            </button>
                                         </div>
+                                    </div>
+                                    
+                                    <div className="hidden lg:block w-px h-24 bg-stone-200 mx-2 shrink-0"></div>
+                                    
+                                    <div className="w-full lg:flex-1 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex justify-start lg:justify-center">
+                                        {renderWeeklyStreak()}
                                     </div>
                                     
                                     <div className="w-full lg:hidden flex justify-end mt-2 lg:mt-0">
