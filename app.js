@@ -43,16 +43,13 @@ const SHELF_COLORS = [
     'bg-slate-500', 'bg-zinc-500', 'bg-stone-500', 'bg-gray-500',
     'bg-slate-300', 'bg-zinc-300', 'bg-stone-300', 'bg-gray-200', 
     'bg-white',
-
     // Bruintinten
     'bg-orange-900', 'bg-amber-900', 'bg-yellow-900', 'bg-stone-700', 'bg-stone-800', 'bg-orange-800',
-
     // Pasteltinten
     'bg-red-200', 'bg-orange-200', 'bg-amber-200', 'bg-yellow-200', 
     'bg-lime-200', 'bg-green-200', 'bg-emerald-200', 'bg-teal-200', 
     'bg-cyan-200', 'bg-sky-200', 'bg-blue-200', 'bg-indigo-200', 
     'bg-violet-200', 'bg-purple-200', 'bg-fuchsia-200', 'bg-pink-200', 'bg-rose-200',
-
     // Rood & Oranje
     'bg-red-400', 'bg-red-500', 'bg-red-600',
     'bg-orange-400', 'bg-orange-500', 'bg-orange-600',
@@ -78,11 +75,10 @@ const SHELF_COLORS = [
     'bg-rose-400', 'bg-rose-500', 'bg-rose-600'
 ];
 
-// Changelog Data
 const CHANGELOG = [
+    { version: "13.0.0", date: "Oktober 2026", changes: ["Gigantische lees-streak weergave op computers", "Spatie-bug gefixt in mobiel menu", "UI optimalisaties"] },
     { version: "12.1.0", date: "Oktober 2026", changes: ["Gigantische uitbreiding van kleurenpalet voor schappen (50+ tinten!)", "Kleur-kiezer pop-up scrolbaar gemaakt voor smartphones"] },
-    { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots", "Lees-streak gigantisch gemaakt op computerschermen", "Spatie-bug gefixt in mobiel menu"] },
-    { version: "11.4.0", date: "Oktober 2026", changes: ["Bugfix: Uitvinken van de lees-streak verwijdert nu ook direct netjes de vlammetjes van vandaag uit de kalender"] },
+    { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots"] },
     { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
     { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen"] },
 ];
@@ -122,7 +118,7 @@ function BoekenApp() {
     const [editBookData, setEditBookData] = useState(null);
     const [newNote, setNewNote] = useState({ text: '', type: 'quote' });
     const [lendData, setLendData] = useState({ name: '', date: getTodayString() });
-    const [quoteCard, setQuoteCard] = useState(null); // Nieuw: Voor de screenshot generator
+    const [quoteCard, setQuoteCard] = useState(null); // Voor de screenshot generator
 
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -625,24 +621,25 @@ function BoekenApp() {
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
+            // LET OP: Hier zijn de min-w, w, h groottes specifiek voor de computer flink vergroot!
             days.push(
-                <div key={i} className="flex flex-col items-center gap-1 md:gap-2 min-w-[28px] sm:min-w-[32px] md:min-w-[56px]">
-                    <div className={`w-7 h-7 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
-                        {hasRead ? <Flame className="w-4 h-4 md:w-6 md:h-6 text-orange-500" /> : <span className="text-[10px] md:text-sm text-stone-400 font-bold">{dayName.charAt(0)}</span>}
+                <div key={i} className="flex flex-col items-center gap-1 md:gap-3 min-w-[28px] sm:min-w-[32px] md:min-w-[70px]">
+                    <div className={`w-7 h-7 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
+                        {hasRead ? <Flame className="w-4 h-4 md:w-8 md:h-8 text-orange-500" /> : <span className="text-[10px] md:text-xl text-stone-400 font-bold">{dayName.charAt(0)}</span>}
                     </div>
                     <div className="flex flex-col items-center">
-                        <span className="text-[9px] md:text-xs text-stone-500 font-bold uppercase leading-none">{dayName}</span>
-                        <span className="text-[8px] md:text-[10px] text-stone-400 font-medium leading-none mt-1 md:mt-1.5">{shortDate}</span>
+                        <span className="text-[9px] md:text-sm text-stone-500 font-bold uppercase leading-none">{dayName}</span>
+                        <span className="text-[8px] md:text-xs text-stone-400 font-medium leading-none mt-1 md:mt-2">{shortDate}</span>
                     </div>
                 </div>
             );
         }
         
         return (
-            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 md:p-4 rounded-xl md:rounded-2xl border border-stone-100">
-                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 md:p-2 text-stone-400 hover:text-stone-800 transition"><ChevronLeft className="w-4 h-4 md:w-6 md:h-6"/></button>
-                <div className="flex gap-1.5 sm:gap-2 md:gap-4 justify-between flex-1 lg:flex-none">{days}</div>
-                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 md:p-2 transition ${streakWeekOffset >= 0 ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-800'}`}><ChevronRight className="w-4 h-4 md:w-6 md:h-6"/></button>
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-6 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 md:p-5 rounded-xl md:rounded-3xl border border-stone-100 shadow-sm">
+                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 md:p-3 text-stone-400 hover:text-stone-800 bg-white rounded-full shadow-sm transition"><ChevronLeft className="w-4 h-4 md:w-8 md:h-8"/></button>
+                <div className="flex gap-1.5 sm:gap-2 md:gap-6 justify-between flex-1 lg:flex-none">{days}</div>
+                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 md:p-3 transition rounded-full shadow-sm ${streakWeekOffset >= 0 ? 'bg-stone-100 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-400 hover:text-stone-800'}`}><ChevronRight className="w-4 h-4 md:w-8 md:h-8"/></button>
             </div>
         );
     };
@@ -658,7 +655,8 @@ function BoekenApp() {
                     </div>
                 )}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex justify-between items-center shadow-md">
-                    <div className="flex items-center gap-2 font-bold text-xl"><Library size={24} className="text-amber-500" />Boeken<span className="text-amber-500">Plank</span></div>
+                    {/* Geen spatie meer tussen icoon en "BoekenPlank" op mobiel! */}
+                    <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                 </div>
             </div>
@@ -668,6 +666,7 @@ function BoekenApp() {
                     <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
                 )}
 
+                {}
                 <nav className={`fixed inset-y-0 left-0 z-50 w-72 bg-stone-900 text-stone-100 flex flex-col shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <div className="p-6 pb-2 border-b border-stone-800">
                         <div className="flex justify-between items-center mb-6">
@@ -707,6 +706,7 @@ function BoekenApp() {
                 <main className="flex-1 overflow-y-auto bg-stone-100 p-4 md:p-10 pb-24 relative z-0">
                     <div className="max-w-7xl mx-auto">
                         
+                        {}
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4">
@@ -718,15 +718,15 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-4xl md:text-5xl lg:text-6xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                    <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
                                                         {stats.currentStreak} 
-                                                        <span className="text-base md:text-xl lg:text-2xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                                        <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
                                                     </p>
                                                 </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200 mx-2 md:mx-4"></div>
+                                        <div className="hidden sm:block w-px h-16 md:h-24 bg-stone-200 mx-2 md:mx-6"></div>
                                         
                                         <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
                                             {renderWeeklyStreak()}
@@ -759,6 +759,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -776,10 +777,10 @@ function BoekenApp() {
                                                 onDragOver={(e) => isDragMode && e.preventDefault()}
                                                 onDrop={(e) => onDropBookToShelf(e, shelf.id)}
                                             >
-                                                {!isDragMode && <div className={`absolute top-0 left-0 w-2 h-full ${shelf.color || 'bg-amber-500'}`}></div>}
+                                                {!isDragMode && <div className={`absolute top-0 left-0 w-3 h-full ${shelf.color || 'bg-amber-500'}`}></div>}
                                                 
                                                 <div 
-                                                    className={`mb-4 border-b border-stone-100 pb-2 flex justify-between items-center ${!isDragMode ? 'cursor-pointer group' : ''}`}
+                                                    className={`mb-4 border-b border-stone-100 pb-2 flex justify-between items-center pl-2 ${!isDragMode ? 'cursor-pointer group' : ''}`}
                                                     onClick={() => !isDragMode && toggleShelf(shelf.id)}
                                                 >
                                                     <div>
@@ -1044,7 +1045,7 @@ function BoekenApp() {
                                         )}
                                     </div>
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Auteur" /></div>
-                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label><input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Thriller, Magie (gescheiden door komma)" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres (komma gescheiden)</label><input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="Bijv. Thriller, Magie" /></div>
                                     <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
                                     <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal Pagina's</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="300" /></div>
                                     <div><label className="block text-xs font-bold text-stone-700 mb-1">Al Gelezen</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
@@ -1265,7 +1266,7 @@ function BoekenApp() {
                                                                 {note.type === 'quote' ? (
                                                                     <>
                                                                         <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
-                                                                        {/* Nieuwe knop voor Screenshot Quote Generator */}
+                                                                        {/* Knop voor Screenshot Quote Generator */}
                                                                         <button onClick={() => setQuoteCard({text: note.text, author: selectedBook.author, title: selectedBook.title, cover: selectedBook.cover})} className="mt-3 ml-6 bg-stone-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-amber-500 transition-colors"><Camera size={12}/> Mooie Quote-kaart maken</button>
                                                                     </>
                                                                 ) : (
