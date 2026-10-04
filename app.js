@@ -615,21 +615,23 @@ function BoekenApp() {
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
             days.push(
-                <div key={i} className="flex flex-col items-center gap-1 min-w-[28px] sm:min-w-[32px]">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
-                        {hasRead ? <Flame size={14} className="text-orange-500" /> : <span className="text-[10px] text-stone-400 font-bold">{dayName.charAt(0)}</span>}
+                <div key={i} className="flex flex-col items-center gap-1 md:gap-2 min-w-[28px] sm:min-w-[32px] md:min-w-[56px]">
+                    <div className={`w-7 h-7 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm' : 'bg-stone-100 border border-stone-200'}`}>
+                        {hasRead ? <Flame className="w-4 h-4 md:w-6 md:h-6 text-orange-500" /> : <span className="text-[10px] md:text-sm text-stone-400 font-bold">{dayName.charAt(0)}</span>}
                     </div>
-                    <span className="text-[9px] text-stone-500 font-bold uppercase leading-none">{dayName}</span>
-                    <span className="text-[8px] text-stone-400 font-medium leading-none">{shortDate}</span>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] md:text-xs text-stone-500 font-bold uppercase leading-none">{dayName}</span>
+                        <span className="text-[8px] md:text-[10px] text-stone-400 font-medium leading-none mt-1 md:mt-1.5">{shortDate}</span>
+                    </div>
                 </div>
             );
         }
         
         return (
-            <div className="flex items-center gap-1 sm:gap-2 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 rounded-xl border border-stone-100">
-                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 text-stone-400 hover:text-stone-800 transition"><ChevronLeft size={18}/></button>
-                <div className="flex gap-1.5 sm:gap-2 justify-between flex-1 lg:flex-none">{days}</div>
-                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 transition ${streakWeekOffset >= 0 ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-800'}`}><ChevronRight size={18}/></button>
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 md:p-4 rounded-xl md:rounded-2xl border border-stone-100">
+                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 md:p-2 text-stone-400 hover:text-stone-800 transition"><ChevronLeft className="w-4 h-4 md:w-6 md:h-6"/></button>
+                <div className="flex gap-1.5 sm:gap-2 md:gap-4 justify-between flex-1 lg:flex-none">{days}</div>
+                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 md:p-2 transition ${streakWeekOffset >= 0 ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-800'}`}><ChevronRight className="w-4 h-4 md:w-6 md:h-6"/></button>
             </div>
         );
     };
@@ -705,15 +707,15 @@ function BoekenApp() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                    <p className="text-4xl md:text-[120px] font-black text-stone-800 leading-none tracking-tighter mt-1 md:mt-2 mb-1 md:mb-5">
+                                                    <p className="text-4xl md:text-5xl lg:text-6xl font-black text-stone-800 leading-none tracking-tighter mt-1">
                                                         {stats.currentStreak} 
-                                                        <span className="text-base md:text-5xl text-stone-400 font-medium tracking-normal md:ml-3">dagen</span>
+                                                        <span className="text-base md:text-xl lg:text-2xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
                                                     </p>
                                                 </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200 mx-2"></div>
+                                        <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200 mx-2 md:mx-4"></div>
                                         
                                         <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
                                             {renderWeeklyStreak()}
