@@ -38,6 +38,21 @@ const toDateString = (dateObj) => {
 
 // Uitgebreid palet aan kleuren voor schappen
 const SHELF_COLORS = [
+    // Zwart, Wit & Grijstinten
+    'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
+    'bg-slate-500', 'bg-zinc-500', 'bg-stone-500', 'bg-gray-500',
+    'bg-slate-300', 'bg-zinc-300', 'bg-stone-300', 'bg-gray-200', 
+    'bg-white',
+
+    // Bruintinten
+    'bg-orange-900', 'bg-amber-900', 'bg-yellow-900', 'bg-stone-700', 'bg-stone-800', 'bg-orange-800',
+
+    // Pasteltinten
+    'bg-red-200', 'bg-orange-200', 'bg-amber-200', 'bg-yellow-200', 
+    'bg-lime-200', 'bg-green-200', 'bg-emerald-200', 'bg-teal-200', 
+    'bg-cyan-200', 'bg-sky-200', 'bg-blue-200', 'bg-indigo-200', 
+    'bg-violet-200', 'bg-purple-200', 'bg-fuchsia-200', 'bg-pink-200', 'bg-rose-200',
+
     // Rood & Oranje
     'bg-red-400', 'bg-red-500', 'bg-red-600',
     'bg-orange-400', 'bg-orange-500', 'bg-orange-600',
@@ -60,11 +75,7 @@ const SHELF_COLORS = [
     'bg-purple-400', 'bg-purple-500', 'bg-purple-600',
     'bg-fuchsia-400', 'bg-fuchsia-500', 'bg-fuchsia-600',
     'bg-pink-400', 'bg-pink-500', 'bg-pink-600',
-    'bg-rose-400', 'bg-rose-500', 'bg-rose-600',
-    // Neutraal / Grijstinten
-    'bg-slate-500', 'bg-slate-800',
-    'bg-zinc-500', 'bg-zinc-800',
-    'bg-stone-500', 'bg-stone-800'
+    'bg-rose-400', 'bg-rose-500', 'bg-rose-600'
 ];
 
 // Changelog Data
@@ -1355,7 +1366,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-transparent hover:scale-110'}`}></button>
+                                    <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
                             
@@ -1383,7 +1394,7 @@ function BoekenApp() {
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
-                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-transparent hover:scale-110'}`}></button>
+                                    <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
 
