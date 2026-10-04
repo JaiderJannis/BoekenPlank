@@ -139,7 +139,7 @@ function BoekenApp() {
     const [readingLogs, setReadingLogs] = useState([]); 
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [activeTab, setActiveTab] = useState('schappen');
+    const [activeTab, setActiveTab] = useState('alle'); // Aangepast van 'schappen' naar 'alle'
     const [collapsedShelves, setCollapsedShelves] = useState([]); 
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
@@ -246,7 +246,7 @@ function BoekenApp() {
         await setDoc(userRef, { name: profileForm.name, email: profileForm.email, role: isAdmin ? 'admin' : 'user', createdAt: new Date().toISOString() });
     };
 
-    const handleLogout = async () => { await signOut(auth); setActiveTab('schappen'); };
+    const handleLogout = async () => { await signOut(auth); setActiveTab('alle'); };
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
@@ -706,8 +706,8 @@ function BoekenApp() {
                     <div className="p-6 flex-1 overflow-y-auto hide-scrollbar flex flex-col">
                         <div className="flex flex-col gap-2 flex-1">
                             <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2">Bibliotheek</p>
-                            <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
                             <button onClick={() => switchTab('alle')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'alle' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookOpen size={20} /> Alle Boeken</button>
+                            <button onClick={() => switchTab('schappen')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'schappen' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><Library size={20} /> Schappen</button>
                             
                             <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Mijn Lijsten</p>
                             <button onClick={() => switchTab('wensenlijst')} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${activeTab === 'wensenlijst' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`}><BookmarkPlus size={20} /> Wensenlijst</button>
@@ -731,41 +731,35 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
-                                
-                                {/* GEPERFECTIONEERDE LEES STREAK WIDGET (Knop correct onder 1 dagen gezet op computer) */}
-                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-6">
-                                    
-                                    {/* Linkerdeel: Vlammetje + Tekst + Knop (Computer) */}
-                                    <div className="flex flex-col gap-3 w-full lg:w-auto min-w-[220px]">
-                                        <div className="flex items-center gap-4">
-                                            <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl">
-                                                <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
-                                                <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
-                                                    {stats.currentStreak} 
-                                                    <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
-                                                </p>
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-start gap-4">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full lg:w-auto">
+                                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1">
+                                                    <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Lees Streak</p>
+                                                    <p className="text-4xl md:text-5xl font-black text-stone-800 leading-none tracking-tighter mt-1">
+                                                        {stats.currentStreak} 
+                                                        <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
+                                                    </p>
+                                                    
+                                                    <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-3 w-full px-4 py-2 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                                        {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                         
-                                        {/* Desktop Button (Verhuist netjes recht onder de dagen!) */}
-                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-1 w-full px-4 py-2.5 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
-                                        </button>
+                                        <div className="hidden sm:block w-px h-16 md:h-28 bg-stone-200 mx-2 md:mx-6"></div>
+                                        
+                                        <div className="w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                                            {renderWeeklyStreak()}
+                                        </div>
                                     </div>
                                     
-                                    {/* Middenlijn (Alleen Desktop) */}
-                                    <div className="hidden lg:block w-px h-24 bg-stone-200 mx-2"></div>
-                                    
-                                    {/* Rechterdeel: Weekoverzicht */}
-                                    <div className="w-full lg:flex-1 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex justify-start lg:justify-center">
-                                        {renderWeeklyStreak()}
-                                    </div>
-
-                                    {/* Mobiele knop */}
-                                    <div className="w-full lg:hidden flex justify-end mt-2">
+                                    <div className="w-full lg:hidden flex justify-end mt-2 lg:mt-0">
                                         <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
                                             {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
                                         </button>
@@ -792,6 +786,7 @@ function BoekenApp() {
                             </div>
                         )}
 
+                        {/* Schappen met Kleur en Inklappen */}
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
                                 {sortedShelves.length === 0 ? (
@@ -971,7 +966,7 @@ function BoekenApp() {
                                                         <td className="p-4 flex justify-end gap-2">
                                                             {u.uid !== user.uid && (
                                                                 <>
-                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
+                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
                                                                     <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-xs flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-2 py-1.5 rounded-lg hover:bg-stone-100 font-medium"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
                                                                 </>
                                                             )}
@@ -993,7 +988,7 @@ function BoekenApp() {
                                                 </div>
                                                 {u.uid !== user.uid && (
                                                     <div className="flex gap-2 mt-1">
-                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('schappen'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer</button>
+                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer</button>
                                                         <button onClick={() => toggleAdminRole(u.uid, u.role)} className="flex-1 flex justify-center items-center gap-1 bg-white border border-stone-300 text-stone-700 py-2 rounded-lg hover:bg-stone-100 text-xs font-bold"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
                                                     </div>
                                                 )}
@@ -1054,8 +1049,12 @@ function BoekenApp() {
                                         
                                         {newBook.title && (
                                             <div className="flex flex-wrap gap-2 mt-2 z-10 relative">
-                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm"><Search size={12} className="mr-1"/> Zoek Kaft op Google</a>
-                                                <a href={`https://www.google.be/search?tbm=bks&q=${encodeURIComponent(newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-stone-100 text-stone-600 hover:bg-stone-200 px-2 py-1.5 rounded-md border border-stone-200 font-bold flex items-center transition-colors shadow-sm"><Search size={12} className="mr-1"/> Zoek Boek Info</a>
+                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm">
+                                                    <Search size={12} className="mr-1"/> Zoek Kaft op Google
+                                                </a>
+                                                <a href={`https://www.google.be/search?tbm=bks&q=${encodeURIComponent(newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-stone-100 text-stone-600 hover:bg-stone-200 px-2 py-1.5 rounded-md border border-stone-200 font-bold flex items-center transition-colors shadow-sm">
+                                                    <Search size={12} className="mr-1"/> Zoek Boek Info
+                                                </a>
                                             </div>
                                         )}
 
@@ -1068,11 +1067,20 @@ function BoekenApp() {
 
                                         {titleSuggestions.length > 0 && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
-                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200"><p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p></div>
+                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
+                                                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Kies een boek uit de lijst</p>
+                                                </div>
                                                 {titleSuggestions.map((item, idx) => (
                                                     <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-3 transition-colors">
-                                                        {item.cover ? (<img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />) : (<div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>)}
-                                                        <div className="flex-1 min-w-0"><p className="font-bold text-sm text-stone-800 truncate">{item.title}</p><p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p></div>
+                                                        {item.cover ? (
+                                                            <img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" />
+                                                        ) : (
+                                                            <div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded shadow-sm border border-stone-200"><Book size={14} className="text-stone-400"/></div>
+                                                        )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold text-sm text-stone-800 truncate">{item.title}</p>
+                                                            <p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p>
+                                                        </div>
                                                         <Plus size={16} className="text-amber-500 flex-shrink-0 opacity-50" />
                                                     </div>
                                                 ))}
@@ -1364,6 +1372,7 @@ function BoekenApp() {
                                                                 {note.type === 'quote' ? (
                                                                     <>
                                                                         <div className="flex gap-2"><Quote size={18} className="text-amber-400 flex-shrink-0 mt-0.5"/><p className="text-sm font-medium text-stone-800 italic leading-relaxed">"{note.text}"</p></div>
+                                                                        {/* Knop voor Screenshot Quote Generator */}
                                                                         <button onClick={() => setQuoteCard({text: note.text, author: selectedBook.author, title: selectedBook.title, cover: selectedBook.cover})} className="mt-3 ml-6 bg-stone-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-amber-500 transition-colors"><Camera size={12}/> Mooie Quote-kaart maken</button>
                                                                     </>
                                                                 ) : (
@@ -1422,6 +1431,7 @@ function BoekenApp() {
                     <button onClick={() => setQuoteCard(null)} className="absolute top-6 right-6 text-white p-3 hover:bg-white/20 rounded-full transition"><X size={32}/></button>
                     
                     <div className="w-full max-w-sm aspect-square relative rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center p-8 text-center border-4 border-stone-800">
+                        {/* Background */}
                         {quoteCard.cover ? (
                             <>
                                 <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110" style={{ backgroundImage: `url(${quoteCard.cover})` }}></div>
@@ -1430,6 +1440,8 @@ function BoekenApp() {
                         ) : (
                             <div className="absolute inset-0 bg-gradient-to-br from-stone-800 to-black"></div>
                         )}
+                        
+                        {/* Content */}
                         <div className="relative z-10 flex flex-col items-center justify-center h-full text-white w-full">
                             <Quote size={48} className="text-amber-400 mb-6 opacity-80"/>
                             <p className="text-xl sm:text-2xl font-serif italic font-medium leading-relaxed mb-6 break-words">"{quoteCard.text}"</p>
@@ -1454,14 +1466,17 @@ function BoekenApp() {
                         <form onSubmit={handleAddShelf} className="p-6 overflow-y-auto hide-scrollbar">
                             <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                             <input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" placeholder="Bijv. Fantasy" />
+                            
                             <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
                             <textarea value={newShelf.description} onChange={e => setNewShelf({...newShelf, description: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
+                            
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
                                     <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
+                            
                             <div className="flex justify-end gap-3 mt-auto">
                                 <button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
                                 <button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button>
@@ -1479,20 +1494,24 @@ function BoekenApp() {
                         <form onSubmit={handleUpdateShelf} className="p-6 overflow-y-auto hide-scrollbar">
                             <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                             <input type="text" required value={editShelfData.name} onChange={e => setEditShelfData({...editShelfData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" />
+                            
                             <label className="block text-sm font-bold text-stone-700 mb-1">Beschrijving (optioneel)</label>
                             <textarea value={editShelfData.description} onChange={e => setEditShelfData({...editShelfData, description: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
+                            
                             <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
                             <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                                 {SHELF_COLORS.map(c => (
                                     <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-stone-200 hover:scale-110 hover:border-stone-300'}`}></button>
                                 ))}
                             </div>
+
                             <div className="flex justify-end gap-3 mt-auto"><button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
                         </form>
                     </div>
                 </div>
             )}
 
+            {/* Camera Scanner Modal */}
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
             )}
