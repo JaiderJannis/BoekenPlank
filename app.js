@@ -36,16 +36,40 @@ const d = new Date(dateObj);
 return ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')};
 };
 
-// Beschikbare kleuren voor schappen
+// Uitgebreid palet aan kleuren voor schappen
 const SHELF_COLORS = [
-'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-green-500',
-'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500',
-'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500',
-'bg-pink-500', 'bg-rose-500', 'bg-stone-500', 'bg-slate-800'
+// Rood & Oranje
+'bg-red-400', 'bg-red-500', 'bg-red-600',
+'bg-orange-400', 'bg-orange-500', 'bg-orange-600',
+// Geel & Amber
+'bg-amber-400', 'bg-amber-500', 'bg-amber-600',
+'bg-yellow-400', 'bg-yellow-500', 'bg-yellow-600',
+// Groen
+'bg-lime-400', 'bg-lime-500', 'bg-lime-600',
+'bg-green-400', 'bg-green-500', 'bg-green-600',
+'bg-emerald-400', 'bg-emerald-500', 'bg-emerald-600',
+// Cyaan & Teal
+'bg-teal-400', 'bg-teal-500', 'bg-teal-600',
+'bg-cyan-400', 'bg-cyan-500', 'bg-cyan-600',
+// Blauw
+'bg-sky-400', 'bg-sky-500', 'bg-sky-600',
+'bg-blue-400', 'bg-blue-500', 'bg-blue-600',
+// Paars & Roze
+'bg-indigo-400', 'bg-indigo-500', 'bg-indigo-600',
+'bg-violet-400', 'bg-violet-500', 'bg-violet-600',
+'bg-purple-400', 'bg-purple-500', 'bg-purple-600',
+'bg-fuchsia-400', 'bg-fuchsia-500', 'bg-fuchsia-600',
+'bg-pink-400', 'bg-pink-500', 'bg-pink-600',
+'bg-rose-400', 'bg-rose-500', 'bg-rose-600',
+// Neutraal / Grijstinten
+'bg-slate-500', 'bg-slate-800',
+'bg-zinc-500', 'bg-zinc-800',
+'bg-stone-500', 'bg-stone-800'
 ];
 
 // Changelog Data
 const CHANGELOG = [
+{ version: "12.1.0", date: "Oktober 2026", changes: ["Gigantische uitbreiding van kleurenpalet voor schappen (50+ tinten!)", "Kleur-kiezer pop-up scrolbaar gemaakt voor smartphones"] },
 { version: "12.0.0", date: "Oktober 2026", changes: ["NIEUW: Inklapbare schappen (klik op de titel!)", "NIEUW: Schappen een eigen kleur geven", "NIEUW: Tags & Genres toevoegen aan boeken", "NIEUW: 'Mooie Quote-kaart' generator voor screenshots", "Lees-streak gigantisch gemaakt op computerschermen", "Spatie-bug gefixt in mobiel menu"] },
 { version: "11.4.0", date: "Oktober 2026", changes: ["Bugfix: Uitvinken van de lees-streak verwijdert nu ook direct netjes de vlammetjes van vandaag uit de kalender"] },
 { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
@@ -1317,9 +1341,9 @@ return (
         {/* Add Shelf Modal met Kleuren */}
         {isShelfModalOpen && (
             <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
-                <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                    <div className="p-6 bg-stone-50"><h3 className="text-2xl font-black">Nieuw Schap</h3></div>
-                    <form onSubmit={handleAddShelf} className="p-6">
+                <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-6 bg-stone-50 flex-shrink-0"><h3 className="text-2xl font-black">Nieuw Schap</h3></div>
+                    <form onSubmit={handleAddShelf} className="p-6 overflow-y-auto hide-scrollbar">
                         <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                         <input type="text" required value={newShelf.name} onChange={e => setNewShelf({...newShelf, name: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" placeholder="Bijv. Fantasy" />
                         
@@ -1327,13 +1351,13 @@ return (
                         <textarea value={newShelf.description} onChange={e => setNewShelf({...newShelf, description: e.target.value})} className="w-full border-2 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
                         
                         <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
-                        <div className="flex flex-wrap gap-2 mb-6">
+                        <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                             {SHELF_COLORS.map(c => (
                                 <button type="button" key={c} onClick={() => setNewShelf({...newShelf, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${newShelf.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-transparent hover:scale-110'}`}></button>
                             ))}
                         </div>
                         
-                        <div className="flex justify-end gap-3">
+                        <div className="flex justify-end gap-3 mt-auto">
                             <button type="button" onClick={() => setIsShelfModalOpen(false)} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button>
                             <button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Aanmaken</button>
                         </div>
@@ -1345,9 +1369,9 @@ return (
         {/* Edit Shelf Modal met Kleuren */}
         {editShelfData.isOpen && (
             <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-                <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                    <div className="p-6 bg-stone-50 border-b border-stone-100"><h3 className="text-2xl font-black">Schap Bewerken</h3></div>
-                    <form onSubmit={handleUpdateShelf} className="p-6">
+                <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-6 bg-stone-50 border-b border-stone-100 flex-shrink-0"><h3 className="text-2xl font-black">Schap Bewerken</h3></div>
+                    <form onSubmit={handleUpdateShelf} className="p-6 overflow-y-auto hide-scrollbar">
                         <label className="block text-sm font-bold text-stone-700 mb-1">Naam</label>
                         <input type="text" required value={editShelfData.name} onChange={e => setEditShelfData({...editShelfData, name: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 font-bold bg-stone-50" />
                         
@@ -1355,13 +1379,13 @@ return (
                         <textarea value={editShelfData.description} onChange={e => setEditShelfData({...editShelfData, description: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 mb-4 bg-stone-50 h-20 resize-none" placeholder="Waar is dit schap voor?" />
                         
                         <label className="block text-sm font-bold text-stone-700 mb-2">Kleur voor schap</label>
-                        <div className="flex flex-wrap gap-2 mb-6">
+                        <div className="flex flex-wrap gap-2 mb-6 max-h-40 overflow-y-auto hide-scrollbar p-1">
                             {SHELF_COLORS.map(c => (
                                 <button type="button" key={c} onClick={() => setEditShelfData({...editShelfData, color: c})} className={`w-8 h-8 rounded-full ${c} border-2 transition-transform ${editShelfData.color === c ? 'border-stone-900 scale-125 shadow-md' : 'border-transparent hover:scale-110'}`}></button>
                             ))}
                         </div>
 
-                        <div className="flex justify-end gap-3"><button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
+                        <div className="flex justify-end gap-3 mt-auto"><button type="button" onClick={() => setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' })} className="px-5 py-3 text-stone-600 font-bold hover:bg-stone-100 rounded-xl">Annuleren</button><button type="submit" className="px-8 py-3 bg-stone-900 text-white font-bold rounded-xl shadow-lg">Opslaan</button></div>
                     </form>
                 </div>
             </div>
