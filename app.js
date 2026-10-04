@@ -687,25 +687,25 @@ function BoekenApp() {
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
-            // LET OP: md:min-w-[80px], md:w-20 md:h-20 zorgt voor een enorm kalenderblok op desktop.
+            // LET OP: Formaat netjes in verhouding gebracht voor de computer
             days.push(
-                <div key={i} className="flex flex-col items-center gap-1 md:gap-3 min-w-[28px] sm:min-w-[32px] md:min-w-[80px]">
-                    <div className={`w-7 h-7 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
-                        {hasRead ? <Flame className="w-4 h-4 md:w-10 md:h-10 text-orange-500" /> : <span className="text-[10px] md:text-2xl text-stone-400 font-bold">{dayName.charAt(0)}</span>}
+                <div key={i} className="flex flex-col items-center gap-1 md:gap-2 min-w-[28px] sm:min-w-[32px] md:min-w-[48px]">
+                    <div className={`w-7 h-7 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all ${hasRead ? 'bg-orange-100 shadow-sm md:shadow-md' : 'bg-stone-100 border border-stone-200'}`}>
+                        {hasRead ? <Flame className="w-4 h-4 md:w-6 md:h-6 text-orange-500" /> : <span className="text-[10px] md:text-lg text-stone-400 font-bold">{dayName.charAt(0)}</span>}
                     </div>
                     <div className="flex flex-col items-center">
-                        <span className="text-[9px] md:text-base text-stone-500 font-bold uppercase leading-none">{dayName}</span>
-                        <span className="text-[8px] md:text-sm text-stone-400 font-medium leading-none mt-1 md:mt-2">{shortDate}</span>
+                        <span className="text-[9px] md:text-xs text-stone-500 font-bold uppercase leading-none">{dayName}</span>
+                        <span className="text-[8px] md:text-[10px] text-stone-400 font-medium leading-none mt-1">{shortDate}</span>
                     </div>
                 </div>
             );
         }
         
         return (
-            <div className="flex items-center gap-1 sm:gap-2 md:gap-8 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 md:p-6 rounded-xl md:rounded-3xl border border-stone-100 shadow-sm">
-                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 md:p-4 text-stone-400 hover:text-stone-800 bg-white rounded-full shadow-sm transition"><ChevronLeft className="w-4 h-4 md:w-8 md:h-8"/></button>
-                <div className="flex gap-1.5 sm:gap-2 md:gap-6 justify-between flex-1 lg:flex-none">{days}</div>
-                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 md:p-4 transition rounded-full shadow-sm ${streakWeekOffset >= 0 ? 'bg-stone-100 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-400 hover:text-stone-800'}`}><ChevronRight className="w-4 h-4 md:w-8 md:h-8"/></button>
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 w-full lg:w-auto mt-2 lg:mt-0 bg-stone-50 p-2 md:p-4 rounded-xl md:rounded-2xl border border-stone-100 shadow-sm">
+                <button onClick={() => setStreakWeekOffset(p => p - 1)} className="p-1 md:p-2 text-stone-400 hover:text-stone-800 bg-white rounded-full shadow-sm transition"><ChevronLeft className="w-4 h-4 md:w-6 md:h-6"/></button>
+                <div className="flex gap-1.5 sm:gap-2 md:gap-4 justify-between flex-1 lg:flex-none">{days}</div>
+                <button onClick={() => setStreakWeekOffset(p => p + 1)} disabled={streakWeekOffset >= 0} className={`p-1 md:p-2 transition rounded-full shadow-sm ${streakWeekOffset >= 0 ? 'bg-stone-100 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-400 hover:text-stone-800'}`}><ChevronRight className="w-4 h-4 md:w-6 md:h-6"/></button>
             </div>
         );
     };
@@ -1036,39 +1036,36 @@ function BoekenApp() {
                         )}
                     </div>
                 </main>
-            </div>
-
-            {/* Boek Toevoegen Modal */}
+            {/* Boek Toevoegen Modal (Compacter gemaakt voor smartphone) */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh]">
-                        <div className="flex justify-between items-center p-4 border-b border-stone-100 bg-stone-50 flex-shrink-0">
-                            <h3 className="text-xl font-black text-stone-800">Boek Toevoegen</h3>
+                        <div className="flex justify-between items-center p-3 sm:p-4 border-b border-stone-100 bg-stone-50 flex-shrink-0">
+                            <h3 className="text-lg sm:text-xl font-black text-stone-800">Boek Toevoegen</h3>
                             <button onClick={() => setIsBookModalOpen(false)} className="text-stone-400 hover:text-stone-700 bg-white p-1.5 rounded-full shadow-sm"><X size={20} /></button>
                         </div>
-                        <div className="p-4 overflow-y-auto hide-scrollbar">
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
+                        <div className="p-3 sm:p-4 overflow-y-auto hide-scrollbar">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 sm:p-3 mb-3">
+                                <label className="block text-[10px] sm:text-xs font-bold text-amber-900 mb-1.5 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
                                 <div className="flex gap-2">
-                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
-                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
+                                    <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-white outline-none text-xs sm:text-sm" />
+                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-1.5 sm:py-2 rounded-lg font-bold text-xs sm:text-sm min-w-[60px] flex justify-center items-center">
                                         {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
                                     </button>
-                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center"><Camera size={16} /></button>
+                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-1.5 sm:py-2 rounded-lg font-bold flex justify-center items-center"><Camera size={16} /></button>
                                 </div>
-                                <p className="text-[9px] text-amber-700 mt-2 font-medium">Lukt scannen niet? Typ de cijfers over. Werkt zoeken niet door een blokkade? Gebruik dan de Google-knoppen hieronder.</p>
-                                {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
-                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
+                                {errorMsg && <p className="text-red-600 font-medium text-[10px] sm:text-xs mt-1.5">{errorMsg}</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-[9px] sm:text-[10px] mt-1.5 bg-red-100 p-1.5 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk.</p>}
                             </div>
-                            <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <form onSubmit={handleAddBook} className={`space-y-2.5 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-40' : ''}`}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     <div className="sm:col-span-2 relative">
-                                        <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
-                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
+                                        <label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
+                                        <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 focus:bg-white outline-none text-xs sm:text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
                                         
                                         {newBook.title && (
-                                            <div className="flex flex-wrap gap-2 mt-2 z-10 relative">
-                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm">
+                                            <div className="flex flex-wrap gap-2 mt-1.5 z-10 relative">
+                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[9px] sm:text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm">
                                                     <Search size={12} className="mr-1"/> Zoek Kaft op Google
                                                 </a>
                                             </div>
@@ -1076,53 +1073,56 @@ function BoekenApp() {
 
                                         {isSearchingTitle && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
-                                                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                                                <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                                             </div>
                                         )}
 
                                         {titleSuggestions.length > 0 && !apiLimitError && (
-                                            <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+                                            <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-400 rounded-xl shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
                                                 {titleSuggestions.map((item, idx) => (
-                                                    <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-3 transition-colors">
-                                                        {item.cover ? <img src={item.cover} alt="cover" className="w-8 h-12 object-cover rounded shadow-sm border border-stone-200" /> : <div className="w-8 h-12 bg-stone-100 flex items-center justify-center rounded border border-stone-200"><Book size={14} className="text-stone-400"/></div>}
-                                                        <div className="flex-1 min-w-0"><p className="font-bold text-sm text-stone-800 truncate">{item.title}</p><p className="text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p></div>
+                                                    <div key={idx} onClick={() => selectTitleSuggestion(item)} className="px-3 py-2 sm:py-3 hover:bg-amber-50 cursor-pointer border-b border-stone-100 last:border-0 flex items-center gap-2 sm:gap-3 transition-colors">
+                                                        {item.cover ? <img src={item.cover} alt="cover" className="w-6 h-9 sm:w-8 sm:h-12 object-cover rounded shadow-sm border border-stone-200" /> : <div className="w-6 h-9 sm:w-8 sm:h-12 bg-stone-100 flex items-center justify-center rounded border border-stone-200"><Book size={14} className="text-stone-400"/></div>}
+                                                        <div className="flex-1 min-w-0"><p className="font-bold text-xs sm:text-sm text-stone-800 truncate">{item.title}</p><p className="text-[10px] sm:text-xs text-stone-500 truncate">{item.author || 'Onbekende auteur'}</p></div>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
                                     </div>
-                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="Auteur" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Auteur</label><input type="text" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="Auteur" /></div>
                                     
                                     {/* Formaat Selectie */}
                                     <div className="sm:col-span-2">
-                                        <label className="block text-xs font-bold text-stone-700 mb-1">Formaat van het boek</label>
+                                        <label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Formaat van het boek</label>
                                         <div className="flex gap-2">
-                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'Fysiek'})} className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl border-2 transition-all ${newBook.format === 'Fysiek' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Book size={18}/><span className="text-[10px] font-bold">Fysiek</span></button>
-                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'E-book'})} className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl border-2 transition-all ${newBook.format === 'E-book' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Tablet size={18}/><span className="text-[10px] font-bold">E-book</span></button>
-                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'Audioboek'})} className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl border-2 transition-all ${newBook.format === 'Audioboek' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Headphones size={18}/><span className="text-[10px] font-bold">Audio</span></button>
+                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'Fysiek'})} className={`flex-1 flex flex-col items-center gap-1 py-1.5 sm:py-2 rounded-xl border-2 transition-all ${newBook.format === 'Fysiek' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Book size={16} className="sm:w-5 sm:h-5"/><span className="text-[9px] sm:text-[10px] font-bold">Fysiek</span></button>
+                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'E-book'})} className={`flex-1 flex flex-col items-center gap-1 py-1.5 sm:py-2 rounded-xl border-2 transition-all ${newBook.format === 'E-book' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Tablet size={16} className="sm:w-5 sm:h-5"/><span className="text-[9px] sm:text-[10px] font-bold">E-book</span></button>
+                                            <button type="button" onClick={() => setNewBook({...newBook, format: 'Audioboek'})} className={`flex-1 flex flex-col items-center gap-1 py-1.5 sm:py-2 rounded-xl border-2 transition-all ${newBook.format === 'Audioboek' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-500'}`}><Headphones size={16} className="sm:w-5 sm:h-5"/><span className="text-[9px] sm:text-[10px] font-bold">Audio</span></button>
                                         </div>
                                     </div>
 
                                     {/* Boekenreeksen (Series) */}
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Boekenreeks (Optioneel)</label><input type="text" value={newBook.series} onChange={e => setNewBook({...newBook, series: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="Harry Potter" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">Deel (Nummer)</label><input type="text" value={newBook.seriesNumber} onChange={e => setNewBook({...newBook, seriesNumber: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="Bijv. 3" /></div>
+                                    <div><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Boekenreeks (Optioneel)</label><input type="text" value={newBook.series} onChange={e => setNewBook({...newBook, series: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="Harry Potter" /></div>
+                                    <div><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Deel (Nummer)</label><input type="text" value={newBook.seriesNumber} onChange={e => setNewBook({...newBook, seriesNumber: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="Bijv. 3" /></div>
 
-                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Tags / Genres</label><input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="Bijv. Thriller, Magie (gescheiden met komma)" /></div>
-                                    <div className="sm:col-span-2"><label className="block text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Tags / Genres</label><input type="text" value={newBook.tags} onChange={e => setNewBook({...newBook, tags: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="Bijv. Thriller, Magie (gescheiden met komma)" /></div>
+                                    <div className="sm:col-span-2"><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Afbeelding URL (optioneel)</label><input type="text" value={newBook.cover} onChange={e => setNewBook({...newBook, cover: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="https://link-naar-plaatje.jpg" /></div>
                                     
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">{newBook.format === 'Audioboek' ? 'Aantal Minuten' : 'Totaal Pagina\'s'}</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="300" /></div>
-                                    <div><label className="block text-xs font-bold text-stone-700 mb-1">{newBook.format === 'Audioboek' ? 'Minuten Geluisterd' : 'Al Gelezen'}</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 outline-none text-sm" placeholder="0" /></div>
+                                    <div><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">{newBook.format === 'Audioboek' ? 'Aantal Minuten' : 'Totaal Pagina\'s'}</label><input type="number" value={newBook.totalPages} onChange={e => setNewBook({...newBook, totalPages: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="300" /></div>
+                                    <div><label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">{newBook.format === 'Audioboek' ? 'Minuten Geluisterd' : 'Al Gelezen'}</label><input type="number" value={newBook.pagesRead} onChange={e => setNewBook({...newBook, pagesRead: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 bg-stone-50 outline-none text-xs sm:text-sm" placeholder="0" /></div>
                                     
                                     <div className="sm:col-span-2">
-                                        <label className="block text-xs font-bold text-stone-700 mb-1">Plaats in Schap of Lijst *</label>
-                                        <select required value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold bg-white outline-none text-sm">
+                                        <label className="block text-[10px] sm:text-xs font-bold text-stone-700 mb-1">Plaats in Schap of Lijst *</label>
+                                        <select required value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 font-bold bg-white outline-none text-xs sm:text-sm">
                                             <option value="" disabled>Kies een locatie...</option>
                                             <option value="wishlist" className="text-amber-600 font-black">⭐ Wensenlijst</option>
                                             {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
                                         </select>
                                     </div>
                                 </div>
-                                <div className="flex justify-end gap-2 pt-3 border-t border-stone-100"><button type="button" onClick={() => setIsBookModalOpen(false)} className="px-4 py-2 font-bold hover:bg-stone-100 rounded-lg text-sm">Annuleren</button><button type="submit" disabled={!newBook.shelfId} className="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-md text-sm">Opslaan</button></div>
+                                <div className="flex justify-end gap-2 pt-2 sm:pt-3 border-t border-stone-100 mt-2">
+                                    <button type="button" onClick={() => setIsBookModalOpen(false)} className="px-3 py-1.5 sm:px-4 sm:py-2 font-bold hover:bg-stone-100 rounded-lg text-xs sm:text-sm">Annuleren</button>
+                                    <button type="submit" disabled={!newBook.shelfId} className="px-4 py-1.5 sm:px-6 sm:py-2 bg-amber-500 text-white font-bold rounded-lg shadow-md text-xs sm:text-sm">Opslaan</button>
+                                </div>
                             </form>
                         </div>
                     </div>
