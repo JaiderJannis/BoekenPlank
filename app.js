@@ -28,6 +28,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'boeken-app-pro';
 
+// Datum Hulpfuncties
 const isYesterday = (d) => { if (!d) return false; const date = new Date(d); const y = new Date(); y.setDate(y.getDate() - 1); return date.toDateString() === y.toDateString(); };
 const isToday = (d) => { if (!d) return false; return new Date(d).toDateString() === new Date().toDateString(); };
 const getTodayString = () => new Date().toISOString().split('T')[0]; 
@@ -43,6 +44,7 @@ const formatTime = (totalSeconds) => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+// Uitgebreid palet aan kleuren voor schappen
 const SHELF_COLORS = [
     'bg-black', 'bg-stone-900', 'bg-zinc-900', 'bg-slate-900',
     'bg-slate-500', 'bg-zinc-500', 'bg-stone-500', 'bg-gray-500',
@@ -285,6 +287,7 @@ function BoekenApp() {
         alert(`Sessie opgeslagen! Je hebt ${pagesReadDiff} ${readType} in ${formatTime(timerSeconds)}.`);
         handleResetTimer();
     };
+
 
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
@@ -1042,7 +1045,6 @@ function BoekenApp() {
                         )}
                     </div>
                 </main>
-
             {/* Boek Toevoegen Modal (Compacter gemaakt voor smartphone) */}
             {isBookModalOpen && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
@@ -1305,7 +1307,6 @@ function BoekenApp() {
                                                     </div>
                                                 )}
 
-                                                {/* Star Rating UI for finished books */}
                                                 {isBookFinished(selectedBook) && (
                                                     <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
                                                         <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Star size={16}/> Jouw Beoordeling</h4>
