@@ -143,10 +143,13 @@ function BoekenApp() {
     const [searchQuery, setSearchQuery] = useState('');
 
     const [activeTab, setActiveTab] = useState('alle'); // Aangepast naar 'alle'
-    const [collapsedShelves, setCollapsedShelves] = useState([]); 
+    const [expandedShelves, setExpandedShelves] = useState([]); 
     const [isBookModalOpen, setIsBookModalOpen] = useState(false);
     const [isShelfModalOpen, setIsShelfModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+    // Toast Meldingen Systeem
+    const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     
     const [selectedBook, setSelectedBook] = useState(null); 
     const [bookModalTab, setBookModalTab] = useState('overzicht');
@@ -260,6 +263,11 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
+    const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+        setTimeout(() => setToast(p => ({ ...p, show: false })), 3000);
+    };
+
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
@@ -344,19 +352,21 @@ function BoekenApp() {
     };
 
     const toggleShelf = (shelfId) => {
-        setCollapsedShelves(prev => prev.includes(shelfId) ? prev.filter(id => id !== shelfId) : [...prev, shelfId]);
+        setExpandedShelves(prev => prev.includes(shelfId) ? prev.filter(id => id !== shelfId) : [...prev, shelfId]);
     };
 
     const handleAddShelf = async (e) => {
         e.preventDefault(); if (!activeUserId || !newShelf.name) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', order: shelves.length, createdAt: new Date().toISOString() });
         setNewShelf({ name: '', description: '', color: 'bg-amber-500' }); setIsShelfModalOpen(false);
+        showToast("Nieuw schap toegevoegd!");
     };
 
     const handleUpdateShelf = async (e) => {
         e.preventDefault(); if(!activeUserId || !editShelfData.id) return;
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', editShelfData.id), { name: editShelfData.name, description: editShelfData.description, color: editShelfData.color });
         setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500' });
+        showToast("Schap succesvol bewerkt!");
     };
 
     const handleAddBook = async (e) => {
@@ -378,6 +388,7 @@ function BoekenApp() {
             addedAt: new Date().toISOString() 
         });
         setNewBook(initialBookState); setIsBookModalOpen(false); setTitleSuggestions([]);
+        showToast("Boek toegevoegd aan je bibliotheek!");
     };
 
     const handleUpdateBookDetails = async (e) => {
@@ -394,6 +405,7 @@ function BoekenApp() {
             shelfId: editBookData.shelfId 
         });
         setSelectedBook(p => ({...p, ...editBookData})); setIsEditingBook(false);
+        showToast("Boekgegevens succesvol bijgewerkt!");
     };
 
     const handleUpdateProgress = async (e) => {
@@ -410,12 +422,13 @@ function BoekenApp() {
         }
         
         setSelectedBook(p => ({...p, pagesRead: newPages}));
+        showToast("Leesvoortgang opgeslagen!");
     };
     
     const handleUpdateReview = async () => {
         if (!activeUserId || !selectedBook) return;
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
-        alert("Beoordeling opgeslagen!");
+        showToast("Jouw beoordeling is opgeslagen!");
     };
 
     const handleAddNote = async (e) => {
@@ -425,6 +438,7 @@ function BoekenApp() {
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
         setSelectedBook({...selectedBook, notes: updatedNotes});
         setNewNote({ text: '', type: 'quote' });
+        showToast("Notitie succesvol toegevoegd!");
     };
 
     const handleDeleteNote = async (noteId) => {
@@ -433,6 +447,7 @@ function BoekenApp() {
             const updatedNotes = (selectedBook.notes || []).filter(n => n.id !== noteId);
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
             setSelectedBook({...selectedBook, notes: updatedNotes});
+            showToast("Notitie verwijderd.", "info");
         });
     };
 
@@ -442,18 +457,21 @@ function BoekenApp() {
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
         setSelectedBook({...selectedBook, lentTo: lendData.name, lentDate: lendData.date});
         setLendData({ name: '', date: getTodayString() });
+        showToast(`Boek uitgeleend aan ${lendData.name}!`);
     };
 
     const handleReturnBook = async () => {
         if (!activeUserId || !selectedBook) return;
         await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: null, lentDate: null });
         setSelectedBook({...selectedBook, lentTo: null, lentDate: null});
+        showToast("Boek is weer terug!");
     };
 
     const handleDeleteBook = async () => {
         if (!activeUserId || !selectedBook) return;
         requestConfirm(`Weet je zeker dat je "${selectedBook.title}" wilt verwijderen?`, async () => {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id)); setSelectedBook(null);
+            showToast("Boek definitief verwijderd.", "info");
         });
     };
 
@@ -461,7 +479,10 @@ function BoekenApp() {
          if (!activeUserId) return;
          const shelfBooks = books.filter(b => b.shelfId === shelfId);
          if(shelfBooks.length > 0) { requestConfirm(`Let op: Er zitten nog ${shelfBooks.length} boeken in "${shelfName}". Verwijder of verplaats deze eerst!`, () => {}); return; }
-         requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId)); });
+         requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { 
+             await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId)); 
+             showToast("Schap definitief verwijderd.", "info");
+         });
     };
 
     const sortedShelves = [...shelves].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -491,6 +512,7 @@ function BoekenApp() {
         if (bookId) {
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', bookId), { shelfId });
             setIsDragMode(false); 
+            showToast("Boek succesvol verplaatst!");
         }
     };
 
@@ -513,6 +535,7 @@ function BoekenApp() {
             const currentShared = shelfToCopy.sharedWith || [];
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
             setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
+            showToast(`Schap succesvol gedeeld met ${shareShelfData.email}!`);
         } catch (err) { setShareShelfData(p => ({...p, loading: false, msg: 'Fout bij het delen.'})); }
     };
 
@@ -525,6 +548,7 @@ function BoekenApp() {
                 const shelf = shelves.find(s => s.id === shelfId);
                 const newSharedWith = (shelf.sharedWith || []).filter(s => s.uid !== shareObj.uid);
                 await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId), { sharedWith: newSharedWith });
+                showToast(`Schap wordt niet meer gedeeld met ${shareObj.email}.`, "info");
             } catch (err) {}
         });
     };
@@ -541,6 +565,7 @@ function BoekenApp() {
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
         if(calendarLogData.dateStr === getTodayString()) handleLogReading(true);
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' });
+        showToast("Leessessie toegevoegd aan je kalender!");
     };
 
     const handleLogReading = async (silent = false) => {
@@ -576,6 +601,7 @@ function BoekenApp() {
             for (const log of logsToDelete) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', log.id));
             }
+            showToast("Lees-streak geannuleerd.", "info");
         });
     };
 
@@ -645,7 +671,7 @@ function BoekenApp() {
                 }
                 
                 setIsImporting(false);
-                alert(`Import succesvol! Er zijn ${rows.length} boeken toegevoegd aan het schap "Geïmporteerd".`);
+                showToast(`Import succesvol! Er zijn ${rows.length} boeken toegevoegd.`);
                 switchTab('schappen');
             },
             error: (err) => {
@@ -821,8 +847,8 @@ function BoekenApp() {
                         
                         {(activeTab === 'schappen' || activeTab === 'alle' || activeTab === 'wensenlijst' || activeTab === 'gelezen') && (
                             <div className="mb-8">
-                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-6 overflow-hidden">
-                                    <div className="flex items-start gap-4 shrink-0 w-full lg:w-auto">
+                                <div className="bg-white rounded-3xl p-4 sm:p-5 mb-8 shadow-sm border border-stone-200/60 flex flex-col lg:flex-row items-center justify-start gap-4 lg:gap-6 overflow-hidden">
+                                    <div className="flex items-center gap-4 shrink-0 w-full lg:w-auto">
                                         <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-2xl mt-1 shrink-0">
                                             <Flame className={`${hasReadToday ? 'text-orange-500 animate-pulse' : 'text-stone-400'}`} size={28} />
                                         </div>
@@ -833,22 +859,29 @@ function BoekenApp() {
                                                 <span className="text-base md:text-xl text-stone-400 font-medium tracking-normal ml-1">dagen</span>
                                             </p>
                                             
-                                            <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`hidden lg:flex mt-3 w-full px-4 py-2 rounded-xl items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                                {hasReadToday ? <><CheckCircle2 size={18} className="shrink-0"/> <span className="truncate">Gelezen Vandaag</span> <span className="text-[10px] text-stone-400 font-normal underline shrink-0">(Uitvinken)</span></> : 'Gelezen!'}
-                                            </button>
+                                            {/* Minimalistische Gelezen Vandaag Knop */}
+                                            {hasReadToday && (
+                                                <button onClick={() => handleUndoLogReading()} className="hidden lg:flex mt-2 w-fit px-2.5 py-1.5 rounded-lg items-center gap-1.5 font-bold transition-all shadow-sm text-[10px] bg-green-50 text-green-700 border border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200">
+                                                    <CheckCircle2 size={12} className="shrink-0"/>
+                                                    <span>Gelezen Vandaag</span>
+                                                    <span className="text-stone-400 font-normal underline hover:text-red-500">(Uitvinken)</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                     
-                                    <div className="hidden lg:block w-px h-24 bg-stone-200 mx-2 shrink-0"></div>
+                                    <div className="hidden sm:block w-px h-16 md:h-20 bg-stone-200 mx-2 shrink-0"></div>
                                     
                                     <div className="w-full lg:flex-1 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar flex justify-start lg:justify-center">
                                         {renderWeeklyStreak()}
                                     </div>
                                     
                                     <div className="w-full lg:hidden flex justify-end mt-2 lg:mt-0">
-                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
-                                        </button>
+                                        {hasReadToday && (
+                                            <button onClick={() => handleUndoLogReading()} className="w-full px-3 py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-sm text-sm bg-green-50 text-green-700 border border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200">
+                                                <CheckCircle2 size={16}/> Gelezen Vandaag <span className="text-[10px] text-stone-400 ml-1 font-normal underline">(Uitvinken)</span>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -878,7 +911,7 @@ function BoekenApp() {
                                     <div className="text-center py-16 bg-white rounded-3xl border-2 border-stone-200 border-dashed"><Library className="text-stone-400 mx-auto mb-4" size={48}/><h3 className="text-2xl font-bold mb-4">Geen schappen</h3><button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button></div>
                                 ) : (
                                     sortedShelves.map(shelf => {
-                                        const isCollapsed = collapsedShelves.includes(shelf.id);
+                                        const isExpanded = expandedShelves.includes(shelf.id);
                                         const shelfBooks = filteredBooks.filter(b => b.shelfId === shelf.id);
                                         if (searchQuery && shelfBooks.length === 0) return null;
                                         
@@ -901,12 +934,12 @@ function BoekenApp() {
                                                     </div>
                                                     {!isDragMode && (
                                                         <button className="p-2 bg-stone-50 group-hover:bg-stone-100 rounded-full text-stone-400 transition-colors">
-                                                            {isCollapsed ? <ChevronDown size={24}/> : <ChevronUp size={24}/>}
+                                                            {isExpanded ? <ChevronUp size={24}/> : <ChevronDown size={24}/>}
                                                         </button>
                                                     )}
                                                 </div>
                                                 
-                                                {!isCollapsed && (
+                                                {isExpanded && (
                                                     shelfBooks.length === 0 ? (
                                                         <div className={`p-8 text-center rounded-xl border-2 border-dashed ${isDragMode ? 'border-amber-300 bg-amber-50' : 'border-stone-200'}`}>
                                                             <p className="text-stone-400 font-bold">{isDragMode ? 'Laat boek hier los!' : 'Geen boeken in dit schap.'}</p>
@@ -1398,6 +1431,7 @@ function BoekenApp() {
                                                     }
                                                     setSelectedBook({...selectedBook, pagesRead: parseInt(endPage)});
                                                     setBookModalTab('overzicht');
+                                                    showToast("Leessessie opgeslagen in je leeslogboek!");
                                                 }} 
                                             />
                                         )}
@@ -1605,6 +1639,16 @@ function BoekenApp() {
 
             {isScannerOpen && (
                 <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center p-4 z-[100] backdrop-blur-md"><div className="w-full max-w-md bg-stone-900 rounded-3xl overflow-hidden border border-stone-800"><div className="p-5 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Camera size={20}/> Scan Barcode</h3><button onClick={() => setIsScannerOpen(false)} className="p-2 rounded-full hover:bg-stone-800"><X size={24}/></button></div><div id="reader" className="w-full bg-black min-h-[300px]"></div></div></div>
+            )}
+
+            {/* Toasts / Notificaties UI */}
+            {toast.show && (
+                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[200] transition-all duration-300">
+                    <div className={`px-5 py-3 rounded-full shadow-2xl text-sm font-bold flex items-center gap-2 text-white border ${toast.type === 'success' ? 'bg-green-600 border-green-500' : 'bg-stone-800 border-stone-700'}`}>
+                        {toast.type === 'success' ? <CheckCircle2 size={18}/> : <Info size={18}/>}
+                        {toast.message}
+                    </div>
+                </div>
             )}
         </div>
     );
