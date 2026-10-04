@@ -68,12 +68,12 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
-    { version: "20.0.0", date: "Oktober 2026", changes: ["Globale Admin Menu-balk toegevoegd voor snelle acccount-wissels.", "Admins kunnen nu gericht boeken 'pushen' (kopiëren) naar schappen van andere gebruikers.", "Vinkje toegevoegd bij boek-creatie: 'Ik heb dit boek geleend' mét visueel label."] },
+    { version: "21.0.0", date: "Oktober 2026", changes: ["'Samenvoegen' functionaliteit toegevoegd voor Admins: bekijk boeken van andere gebruikers naadloos samen met je eigen boeken, met duidelijke labels.", "Topbalk verwijderd en Admin-menu verplaatst naar de zijbalk."] },
+    { version: "20.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu gericht boeken 'pushen' (kopiëren) naar schappen van andere gebruikers.", "Vinkje toegevoegd bij boek-creatie: 'Ik heb dit boek geleend' mét visueel label."] },
     { version: "19.0.0", date: "Oktober 2026", changes: ["Nieuwe functie: 'Ontdekken'. Bekijk boeken van andere gebruikers en kopieer ze direct naar je eigen schappen!", "Privacy instellingen toegevoegd: Bepaal zelf wie jouw boeken mag inzien en kopiëren."] },
     { version: "18.1.0", date: "Oktober 2026", changes: ["Dynamische streakberekening ingebouwd! De lees-streak kijkt nu real-time naar je kalender en is altijd perfect in sync.", "Tijdzone en datum berekeningen gefixt"] },
     { version: "18.0.0", date: "Oktober 2026", changes: ["Je kunt nu in de kalender achteraf de gelezen pagina's makkelijk aanpassen (via het bewerk-icoontje)", "Tags & Genres kunnen nu ook aan de Schappen worden toegevoegd!"] },
-    { version: "17.0.0", date: "Oktober 2026", changes: ["Menu inklapbaar gemaakt op desktop voor meer werkruimte", "Op smartphone is de menu-knop naar de linkerkant verplaatst", "Pagina's (en minuten) kunnen nu direct worden bewerkt bij het toevoegen van een log aan de kalender!"] },
-    { version: "16.0.0", date: "Oktober 2026", changes: ["📸 AI Kaft Scanner toegevoegd!", "🔤 Sortering en Filter knop bovenaan toegevoegd."] }
+    { version: "17.0.0", date: "Oktober 2026", changes: ["Menu inklapbaar gemaakt op desktop voor meer werkruimte", "Op smartphone is de menu-knop naar de linkerkant verplaatst", "Pagina's (en minuten) kunnen nu direct worden bewerkt bij het toevoegen van een log aan de kalender!"] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -137,11 +137,21 @@ function BoekenApp() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
     
-    const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
+    // Splitting Data states for Merging Logic
+    const [myBooks, setMyBooks] = useState([]);
+    const [myShelves, setMyShelves] = useState([]);
+    const [myLogs, setMyLogs] = useState([]);
+    const [myStats, setMyStats] = useState({ currentStreak: 0, lastReadDate: null });
 
-    const [books, setBooks] = useState([]);
-    const [shelves, setShelves] = useState([]);
-    const [readingLogs, setReadingLogs] = useState([]); 
+    const [impBooks, setImpBooks] = useState([]);
+    const [impShelves, setImpShelves] = useState([]);
+    const [impLogs, setImpLogs] = useState([]);
+
+    // Combined Data (This makes the magic happen)
+    const books = [...myBooks, ...impBooks];
+    const shelves = [...myShelves, ...impShelves];
+    const readingLogs = [...myLogs, ...impLogs];
+    const stats = myStats; // Alleen admin z'n eigen streak is relevant
     
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('az'); 
@@ -224,14 +234,30 @@ function BoekenApp() {
         return () => unsubscribeAuth();
     }, []);
 
+    // Haal Admin's EIGEN data op
     useEffect(() => {
-        if (!activeUserId) return;
-        const unsubBooks = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), s => setBooks(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
-        const unsubShelves = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), s => setShelves(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
-        const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'users', activeUserId, 'readingLog'), s => setReadingLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
+        if (!user) return;
+        const unsubBooks = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'books'), s => setMyBooks(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
+        const unsubShelves = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'shelves'), s => setMyShelves(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
+        const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'readingLog'), s => setMyLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))), console.error);
+        const unsubStats = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'stats'), d => { 
+            if(d.exists()) setMyStats(d.data()); else setMyStats({ currentStreak: 0, lastReadDate: null });
+        }, console.error);
+        
+        return () => { unsubBooks(); unsubShelves(); unsubLogs(); unsubStats(); };
+    }, [user]);
+
+    // Haal Data op van de GESELECTEERDE gebruiker (voor de Samenvoegen-weergave)
+    useEffect(() => {
+        if (!impersonatedUser || !user || impersonatedUser.uid === user.uid) {
+            setImpBooks([]); setImpShelves([]); setImpLogs([]); return;
+        }
+        const unsubBooks = onSnapshot(collection(db, 'artifacts', appId, 'users', impersonatedUser.uid, 'books'), s => setImpBooks(s.docs.map(d => ({ id: d.id, ...d.data(), _owner: impersonatedUser.name, _ownerUid: impersonatedUser.uid }))), console.error);
+        const unsubShelves = onSnapshot(collection(db, 'artifacts', appId, 'users', impersonatedUser.uid, 'shelves'), s => setImpShelves(s.docs.map(d => ({ id: d.id, ...d.data(), _owner: impersonatedUser.name, _ownerUid: impersonatedUser.uid }))), console.error);
+        const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'users', impersonatedUser.uid, 'readingLog'), s => setImpLogs(s.docs.map(d => ({ id: d.id, ...d.data(), _owner: impersonatedUser.name, _ownerUid: impersonatedUser.uid }))), console.error);
         
         return () => { unsubBooks(); unsubShelves(); unsubLogs(); };
-    }, [activeUserId]);
+    }, [impersonatedUser, user]);
 
     useEffect(() => {
         if (!viewingPublicUser) {
@@ -261,7 +287,6 @@ function BoekenApp() {
             setAdminPushShelves([]);
         }
     }, [adminPushData.targetUid]);
-
 
     const handleLogin = async (e) => {
         e.preventDefault(); setLoading(true);
@@ -516,22 +541,30 @@ function BoekenApp() {
     };
 
     const handleAddShelf = async (e) => {
-        e.preventDefault(); if (!activeUserId || !newShelf.name) return;
-        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', tags: newShelf.tags || '', order: shelves.length, createdAt: new Date().toISOString() });
+        e.preventDefault(); if (!user || !newShelf.name) return;
+        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', tags: newShelf.tags || '', order: myShelves.length, createdAt: new Date().toISOString() });
         setNewShelf({ name: '', description: '', color: 'bg-amber-500', tags: '' }); setIsShelfModalOpen(false);
         showToast("Nieuw schap toegevoegd!");
     };
 
     const handleUpdateShelf = async (e) => {
-        e.preventDefault(); if(!activeUserId || !editShelfData.id) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', editShelfData.id), { name: editShelfData.name, description: editShelfData.description, color: editShelfData.color, tags: editShelfData.tags || '' });
+        e.preventDefault(); if(!user || !editShelfData.id) return;
+        const ownerUid = editShelfData._ownerUid || user.uid;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'shelves', editShelfData.id), { name: editShelfData.name, description: editShelfData.description, color: editShelfData.color, tags: editShelfData.tags || '' });
         setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '' });
         showToast("Schap succesvol bewerkt!");
     };
 
     const handleAddBook = async (e) => {
-        e.preventDefault(); if (!activeUserId || !newBook.title || !newBook.shelfId) return;
-        await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), { 
+        e.preventDefault(); if (!user || !newBook.title || !newBook.shelfId) return;
+        
+        let targetUid = user.uid;
+        if (newBook.shelfId !== 'wishlist') {
+            const selectedShelf = shelves.find(s => s.id === newBook.shelfId);
+            if (selectedShelf && selectedShelf._ownerUid) targetUid = selectedShelf._ownerUid;
+        }
+
+        await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'books'), { 
             ...newBook, 
             author: newBook.author || 'Onbekend', 
             totalPages: parseInt(newBook.totalPages) || 0, 
@@ -549,12 +582,13 @@ function BoekenApp() {
             addedAt: new Date().toISOString() 
         });
         setNewBook(initialBookState); setIsBookModalOpen(false); setTitleSuggestions([]); setOcrProgress('');
-        showToast("Boek toegevoegd aan je bibliotheek!");
+        showToast("Boek toegevoegd aan bibliotheek!");
     };
 
     const handleUpdateBookDetails = async (e) => {
-        e.preventDefault(); if (!activeUserId || !editBookData.id) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', editBookData.id), { 
+        e.preventDefault(); if (!user || !editBookData.id) return;
+        const ownerUid = editBookData._ownerUid || user.uid;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', editBookData.id), { 
             title: editBookData.title, 
             author: editBookData.author, 
             cover: editBookData.cover, 
@@ -571,15 +605,16 @@ function BoekenApp() {
     };
 
     const handleUpdateProgress = async (e) => {
-        e.preventDefault(); if (!activeUserId || !selectedBook) return;
-        const bookRef = doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id);
+        e.preventDefault(); if (!user || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
+        const bookRef = doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id);
         const newPages = parseInt(selectedBook.pagesRead) || 0;
         await updateDoc(bookRef, { pagesRead: newPages });
         
         const orig = books.find(b => b.id === selectedBook.id);
         if (newPages > (orig?.pagesRead || 0)) {
             const todayStr = getTodayString();
-            await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
+            await setDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
         }
         
         setSelectedBook(p => ({...p, pagesRead: newPages}));
@@ -587,26 +622,29 @@ function BoekenApp() {
     };
     
     const handleUpdateReview = async () => {
-        if (!activeUserId || !selectedBook) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
+        if (!user || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
         showToast("Jouw beoordeling is opgeslagen!");
     };
 
     const handleAddNote = async (e) => {
         e.preventDefault();
-        if (!activeUserId || !selectedBook || !newNote.text) return;
+        if (!user || !selectedBook || !newNote.text) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
         const updatedNotes = [...(selectedBook.notes || []), { ...newNote, date: new Date().toISOString(), id: Date.now().toString() }];
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
         setSelectedBook({...selectedBook, notes: updatedNotes});
         setNewNote({ text: '', type: 'quote' });
         showToast("Notitie succesvol toegevoegd!");
     };
 
     const handleDeleteNote = async (noteId) => {
-        if (!activeUserId || !selectedBook) return;
+        if (!user || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
         requestConfirm("Weet je zeker dat je deze notitie wilt verwijderen?", async () => {
             const updatedNotes = (selectedBook.notes || []).filter(n => n.id !== noteId);
-            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { notes: updatedNotes });
+            await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
             setSelectedBook({...selectedBook, notes: updatedNotes});
             showToast("Notitie verwijderd.", "info");
         });
@@ -614,51 +652,54 @@ function BoekenApp() {
 
     const handleLendBook = async (e) => {
         e.preventDefault();
-        if (!activeUserId || !selectedBook || !lendData.name) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
+        if (!user || !selectedBook || !lendData.name) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
         setSelectedBook({...selectedBook, lentTo: lendData.name, lentDate: lendData.date});
         setLendData({ name: '', date: getTodayString() });
         showToast(`Boek uitgeleend aan ${lendData.name}!`);
     };
 
     const handleReturnBook = async () => {
-        if (!activeUserId || !selectedBook) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { lentTo: null, lentDate: null });
+        if (!user || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
+        await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: null, lentDate: null });
         setSelectedBook({...selectedBook, lentTo: null, lentDate: null});
         showToast("Boek is weer terug!");
     };
 
     const handleDeleteBook = async () => {
-        if (!activeUserId || !selectedBook) return;
+        if (!user || !selectedBook) return;
+        const ownerUid = selectedBook._ownerUid || user.uid;
         requestConfirm(`Weet je zeker dat je "${selectedBook.title}" wilt verwijderen?`, async () => {
-            await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id)); setSelectedBook(null);
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id)); setSelectedBook(null);
             showToast("Boek definitief verwijderd.", "info");
         });
     };
 
-    const handleDeleteShelf = async (shelfId, shelfName) => {
-         if (!activeUserId) return;
+    const handleDeleteShelf = async (shelfId, shelfName, ownerUid) => {
+         if (!user) return;
+         const targetUid = ownerUid || user.uid;
          const shelfBooks = books.filter(b => b.shelfId === shelfId);
          if(shelfBooks.length > 0) { requestConfirm(`Let op: Er zitten nog ${shelfBooks.length} boeken in "${shelfName}". Verwijder of verplaats deze eerst!`, () => {}); return; }
          requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { 
-             await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId)); 
+             await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'shelves', shelfId)); 
              showToast("Schap definitief verwijderd.", "info");
          });
     };
 
-    const sortedShelves = [...shelves].sort((a, b) => (a.order || 0) - (b.order || 0));
-
     const handleMoveShelf = async (index, direction) => {
-        if (!activeUserId) return;
-        if (index + direction < 0 || index + direction >= sortedShelves.length) return;
-        const updatedShelves = [...sortedShelves];
-        const temp = updatedShelves[index];
-        updatedShelves[index] = updatedShelves[index + direction];
-        updatedShelves[index + direction] = temp;
+        if (!user) return;
+        const sortedMyShelves = [...myShelves].sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (index + direction < 0 || index + direction >= sortedMyShelves.length) return;
         
-        for (let i = 0; i < updatedShelves.length; i++) {
-            if (updatedShelves[i].order !== i) {
-                await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', updatedShelves[i].id), { order: i });
+        const temp = sortedMyShelves[index];
+        sortedMyShelves[index] = sortedMyShelves[index + direction];
+        sortedMyShelves[index + direction] = temp;
+        
+        for (let i = 0; i < sortedMyShelves.length; i++) {
+            if (sortedMyShelves[i].order !== i) {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', sortedMyShelves[i].id), { order: i });
             }
         }
     };
@@ -668,10 +709,13 @@ function BoekenApp() {
     };
 
     const onDropBookToShelf = async (e, shelfId) => {
-        if(!isDragMode || !activeUserId) return;
+        if(!isDragMode || !user) return;
         const bookId = e.dataTransfer.getData('bookId');
         if (bookId) {
-            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', bookId), { shelfId });
+            const book = books.find(b => b.id === bookId);
+            if(!book) return;
+            const ownerUid = book._ownerUid || user.uid;
+            await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', bookId), { shelfId });
             setIsDragMode(false); 
             showToast("Boek succesvol verplaatst!");
         }
@@ -684,7 +728,7 @@ function BoekenApp() {
             let targetUid = null;
             allUsers.forEach(d => { if (d.email.toLowerCase() === shareShelfData.email.toLowerCase()) targetUid = d.uid; });
             if (!targetUid) return setShareShelfData(p => ({...p, loading: false, msg: 'Gebruiker niet gevonden in het systeem.'}));
-            if (targetUid === activeUserId) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
+            if (targetUid === user.uid) return setShareShelfData(p => ({...p, loading: false, msg: 'Je kunt dit niet met jezelf delen.'}));
             const shelfToCopy = shelves.find(s => s.id === shareShelfData.shelfId);
             if (shelfToCopy.sharedWith && shelfToCopy.sharedWith.some(s => s.uid === targetUid)) {
                 return setShareShelfData(p => ({...p, loading: false, msg: 'Dit schap is al gedeeld met deze gebruiker.'}));
@@ -693,7 +737,7 @@ function BoekenApp() {
             const booksToCopy = books.filter(b => b.shelfId === shareShelfData.shelfId);
             for (const b of booksToCopy) { await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'books'), { ...b, shelfId: newShelfRef.id, addedAt: new Date().toISOString() }); }
             const currentShared = shelfToCopy.sharedWith || [];
-            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
             setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
             showToast(`Schap succesvol gedeeld met ${shareShelfData.email}!`);
         } catch (err) { setShareShelfData(p => ({...p, loading: false, msg: 'Fout bij het delen.'})); }
@@ -707,7 +751,7 @@ function BoekenApp() {
                 targetBooksSnap.forEach(async (b) => { if (b.data().shelfId === shareObj.targetShelfId) await deleteDoc(doc(db, 'artifacts', appId, 'users', shareObj.uid, 'books', b.id)); });
                 const shelf = shelves.find(s => s.id === shelfId);
                 const newSharedWith = (shelf.sharedWith || []).filter(s => s.uid !== shareObj.uid);
-                await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shelfId), { sharedWith: newSharedWith });
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'shelves', shelfId), { sharedWith: newSharedWith });
                 showToast(`Schap wordt niet meer gedeeld met ${shareObj.email}.`, "info");
             } catch (err) {}
         });
@@ -720,35 +764,37 @@ function BoekenApp() {
     };
 
     const handleRetroactiveLog = async (e) => {
-        e.preventDefault(); if (!activeUserId || !calendarLogData.bookId) return;
+        e.preventDefault(); if (!user || !calendarLogData.bookId) return;
         const book = books.find(b => b.id === calendarLogData.bookId); if (!book) return;
+        const targetUid = book._ownerUid || user.uid;
 
         const newPages = parseInt(calendarLogData.pagesRead);
         if (!isNaN(newPages) && newPages !== parseInt(book.pagesRead)) {
-            await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', book.id), { pagesRead: newPages });
+            await updateDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'books', book.id), { pagesRead: newPages });
         }
 
-        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
+        await setDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
         
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
         showToast("Leessessie en voortgang opgeslagen in je kalender!");
     };
 
-    const handleDeleteLog = async (logId) => {
-        if (!activeUserId) return;
+    const handleDeleteLog = async (logId, ownerUid) => {
+        if (!user) return;
+        const targetUid = ownerUid || user.uid;
         requestConfirm("Weet je zeker dat je dit boek van deze dag wilt verwijderen?", async () => {
-            await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', logId));
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'readingLog', logId));
             showToast("Log succesvol verwijderd uit de kalender.", "info");
         });
     };
 
     const handleUndoLogReading = async () => {
-        if (!activeUserId) return;
+        if (!user) return;
         requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
             const todayStr = getTodayString();
-            const logsToDelete = readingLogs.filter(log => log.date === todayStr);
+            const logsToDelete = myLogs.filter(log => log.date === todayStr); // Delete only my own manual logs to fix streak
             for (const log of logsToDelete) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', log.id));
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'readingLog', log.id));
             }
             showToast("Lees-streak geannuleerd.", "info");
         });
@@ -756,7 +802,7 @@ function BoekenApp() {
 
     const handleFileUpload = (event) => {
         const file = event.target.files[0];
-        if (!file || !activeUserId) return;
+        if (!file || !user) return;
         setIsImporting(true);
         
         Papa.parse(file, {
@@ -767,13 +813,13 @@ function BoekenApp() {
                 setImportStats({ total: rows.length, current: 0 });
                 
                 let importedShelfId = '';
-                const existingShelf = shelves.find(s => s.name.toLowerCase() === 'geïmporteerd' || s.name.toLowerCase() === 'imported');
+                const existingShelf = myShelves.find(s => s.name.toLowerCase() === 'geïmporteerd' || s.name.toLowerCase() === 'imported');
                 if (existingShelf) {
                     importedShelfId = existingShelf.id;
                 } else {
                     try {
-                        const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), {
-                            name: 'Geïmporteerd', description: 'Boeken toegevoegd via CSV import', color: 'bg-blue-500', order: shelves.length, createdAt: new Date().toISOString()
+                        const newShelfRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'shelves'), {
+                            name: 'Geïmporteerd', description: 'Boeken toegevoegd via CSV import', color: 'bg-blue-500', order: myShelves.length, createdAt: new Date().toISOString()
                         });
                         importedShelfId = newShelfRef.id;
                     } catch(e) {
@@ -798,7 +844,7 @@ function BoekenApp() {
                     
                     const tags = row['Bookshelves'] || row['Tags'] || row['genres'] || '';
 
-                    await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'books'), {
+                    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'books'), {
                         title,
                         author,
                         isbn: String(isbn).replace(/[^0-9X]/gi, ''),
@@ -836,36 +882,43 @@ function BoekenApp() {
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
-    const logsByDate = readingLogs.reduce((acc, log) => { 
+    // Dynamische Streak: Gebruikt ALLEEN myLogs om de admin's eigen streak accuraat te houden
+    const myLogsByDate = myLogs.reduce((acc, log) => { 
         if (!acc[log.date]) acc[log.date] = []; 
         acc[log.date].push(log); 
         return acc; 
     }, {});
     
     const todayStr = getTodayString();
-    const hasReadToday = !!logsByDate[todayStr];
+    const hasReadToday = !!myLogsByDate[todayStr];
 
     const calculateDynamicStreak = () => {
-        if (Object.keys(logsByDate).length === 0) return 0;
+        if (Object.keys(myLogsByDate).length === 0) return 0;
         let streak = 0;
         const today = new Date();
         let checkDate = new Date(today);
         
-        if (!logsByDate[toDateString(checkDate)]) {
+        if (!myLogsByDate[toDateString(checkDate)]) {
             checkDate.setDate(checkDate.getDate() - 1);
-            if (!logsByDate[toDateString(checkDate)]) {
+            if (!myLogsByDate[toDateString(checkDate)]) {
                 return 0; 
             }
         }
         
-        while (logsByDate[toDateString(checkDate)]) {
+        while (myLogsByDate[toDateString(checkDate)]) {
             streak++;
             checkDate.setDate(checkDate.getDate() - 1);
         }
         return streak;
     };
-    
     const currentStreak = calculateDynamicStreak();
+
+    // Kalender: Gebruikt ALLE logs (Mijn + Impersonated)
+    const allLogsByDate = readingLogs.reduce((acc, log) => { 
+        if (!acc[log.date]) acc[log.date] = []; 
+        acc[log.date].push(log); 
+        return acc; 
+    }, {});
 
     const isBookFinished = (b) => b.totalPages > 0 && parseInt(b.pagesRead) >= parseInt(b.totalPages);
     
@@ -909,7 +962,7 @@ function BoekenApp() {
         }
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = toDateString(new Date(calYear, calMonth, day));
-            const dayLogs = logsByDate[dateStr] || [];
+            const dayLogs = allLogsByDate[dateStr] || [];
             const isCurrentDay = dateStr === todayStr;
             const hasRead = dayLogs.length > 0;
 
@@ -921,8 +974,9 @@ function BoekenApp() {
                     </div>
                     <div className="absolute top-7 left-1 right-1 bottom-1 flex gap-1 overflow-x-auto hide-scrollbar items-end">
                         {dayLogs.map((log, idx) => (
-                            <div key={idx} className="w-8 h-12 sm:w-10 sm:h-14 flex-shrink-0 rounded shadow-sm overflow-hidden bg-stone-200 border border-stone-300">
+                            <div key={idx} className={`w-8 h-12 sm:w-10 sm:h-14 flex-shrink-0 rounded shadow-sm overflow-hidden border ${log._owner ? 'border-purple-400 bg-purple-50 relative' : 'border-stone-300 bg-stone-200'}`}>
                                 {log.cover ? <img src={log.cover} className="w-full h-full object-cover" title={log.title}/> : <Book size={16} className="m-auto text-stone-400 mt-3"/>}
+                                {log._owner && <div className="absolute bottom-0 inset-x-0 bg-purple-600 text-white text-[6px] font-bold text-center leading-none py-0.5 truncate">{log._owner}</div>}
                             </div>
                         ))}
                     </div>
@@ -943,7 +997,7 @@ function BoekenApp() {
             const d = new Date(startOfWeek);
             d.setDate(startOfWeek.getDate() + i);
             const dStr = toDateString(d);
-            const hasRead = logsByDate[dStr] ? true : false;
+            const hasRead = allLogsByDate[dStr] ? true : false;
             const dayName = d.toLocaleDateString('nl-NL', {weekday: 'short'});
             const shortDate = `${d.getDate()}/${d.getMonth() + 1}`; 
             
@@ -969,45 +1023,22 @@ function BoekenApp() {
         );
     };
 
-    // Filter community users (Zien wij als we in de Ontdekken tab zijn)
+    // Filter community users
     const displayCommunityUsers = allUsers.filter(u => {
         if (u.uid === user.uid) return false; 
         if (userData.role === 'admin') return true; 
         return u.allowedCopiers && u.allowedCopiers.includes(userData.email.toLowerCase());
     });
 
+    const sortedShelvesForDisplay = [
+        ...myShelves.sort((a, b) => (a.order || 0) - (b.order || 0)),
+        ...impShelves.sort((a, b) => (a.order || 0) - (b.order || 0))
+    ];
+
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
             <div className="w-full flex flex-col z-30 flex-shrink-0">
-                {/* GLOBALE ADMIN MENU BALK */}
-                {userData && userData.role === 'admin' && (
-                    <div className="bg-stone-900 border-b border-stone-700 text-white px-4 py-2 flex flex-col sm:flex-row justify-between items-center z-50 text-xs sm:text-sm">
-                        <div className="flex items-center gap-2 font-bold mb-2 sm:mb-0 text-amber-500">
-                            <Shield size={16} /> Systeem Admin Actief
-                        </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <span className="text-stone-400 whitespace-nowrap">Huidige weergave:</span>
-                            <select
-                                value={activeUserId || user.uid}
-                                onChange={(e) => {
-                                    const uid = e.target.value;
-                                    if (uid === user.uid) setImpersonatedUser(null);
-                                    else setImpersonatedUser(allUsers.find(u => u.uid === uid));
-                                }}
-                                className="bg-stone-800 border border-stone-600 text-white flex-1 sm:flex-none rounded-lg px-2 py-1 outline-none font-bold cursor-pointer"
-                            >
-                                <option value={user.uid}>Mijn Eigen Account</option>
-                                <optgroup label="Andere Gebruikers">
-                                    {allUsers.filter(u => u.uid !== user.uid).map(u => (
-                                        <option key={u.uid} value={u.uid}>{u.name} ({u.email})</option>
-                                    ))}
-                                </optgroup>
-                            </select>
-                        </div>
-                    </div>
-                )}
-                
                 {/* MENU OP SMARTPHONE */}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between shadow-md">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
@@ -1045,18 +1076,38 @@ function BoekenApp() {
                         </div>
                         
                         <div className={`flex items-center gap-3 mb-4 bg-stone-800/50 rounded-2xl border border-stone-700 ${isDesktopCollapsed ? 'p-2 justify-center flex-col' : 'p-3'}`}>
-                            <div className={`rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 ${isDesktopCollapsed ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-lg'}`}>
-                                {impersonatedUser ? impersonatedUser.name.charAt(0).toUpperCase() : userData.name.charAt(0).toUpperCase()}
+                            <div className="relative rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 w-10 h-10 text-lg">
+                                {userData.name.charAt(0).toUpperCase()}
+                                {impersonatedUser && <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-stone-800"></div>}
                             </div>
                             {!isDesktopCollapsed && (
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-sm truncate text-white">{impersonatedUser ? impersonatedUser.name : userData.name}</p>
-                                    <p className={`text-xs truncate ${impersonatedUser ? 'text-amber-500 font-bold' : 'text-stone-400'}`}>
-                                        {impersonatedUser ? 'Wordt beheerd' : (userData.role === 'admin' ? 'Beheerder' : 'Gebruiker')}
-                                    </p>
+                                    <p className="font-bold text-sm truncate text-white">{userData.name}</p>
+                                    {userData.role === 'admin' ? (
+                                        <div className="mt-1">
+                                            <select 
+                                                value={impersonatedUser ? impersonatedUser.uid : ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (!val) setImpersonatedUser(null);
+                                                    else setImpersonatedUser(allUsers.find(u => u.uid === val));
+                                                }}
+                                                className="w-full bg-stone-900 text-amber-500 text-[10px] rounded px-1 py-1 border border-stone-600 outline-none cursor-pointer font-bold"
+                                            >
+                                                <option value="">Alleen mijn account</option>
+                                                <optgroup label="Samenvoegen met:">
+                                                    {allUsers.filter(u => u.uid !== user.uid).map(u => (
+                                                        <option key={u.uid} value={u.uid}>+ {u.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-stone-400 truncate">Gebruiker</p>
+                                    )}
                                 </div>
                             )}
-                            {!isDesktopCollapsed && !impersonatedUser && (
+                            {!isDesktopCollapsed && (
                                 <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors flex-shrink-0"><LogOut size={16}/></button>
                             )}
                         </div>
@@ -1104,7 +1155,7 @@ function BoekenApp() {
                                 {!isDesktopCollapsed && <span className="whitespace-nowrap">Versiegeschiedenis</span>}
                             </button>
                             
-                            {userData.role === 'admin' && !impersonatedUser && (
+                            {userData.role === 'admin' && (
                                 <button onClick={() => switchTab('admin')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Systeem Admin" : ""}>
                                     <Shield size={20} className="flex-shrink-0"/>
                                     {!isDesktopCollapsed && <span className="whitespace-nowrap">Systeem Admin</span>}
@@ -1180,7 +1231,7 @@ function BoekenApp() {
                                         </div>
 
                                         {activeTab === 'schappen' && (
-                                            <button onClick={() => setIsDragMode(!isDragMode)} className={`flex justify-center items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-sm text-sm border-2 ${isDragMode ? 'bg-amber-100 border-amber-500 text-amber-800 animate-pulse' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}>
+                                            <button onClick={() => setIsDragMode(!isDragMode)} disabled={!!impersonatedUser} className={`flex justify-center items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-sm text-sm border-2 ${isDragMode ? 'bg-amber-100 border-amber-500 text-amber-800 animate-pulse' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'} ${impersonatedUser ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                                 <Move size={16} /> {isDragMode ? 'Slepen Klaar' : 'Slepen aanzetten'}
                                             </button>
                                         )}
@@ -1192,10 +1243,10 @@ function BoekenApp() {
 
                         {activeTab === 'schappen' && (
                             <div className="space-y-8 sm:space-y-12">
-                                {sortedShelves.length === 0 ? (
+                                {sortedShelvesForDisplay.length === 0 ? (
                                     <div className="text-center py-16 bg-white rounded-3xl border-2 border-stone-200 border-dashed"><Library className="text-stone-400 mx-auto mb-4" size={48}/><h3 className="text-2xl font-bold mb-4">Geen schappen</h3><button onClick={() => switchTab('beheer')} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold">Ga naar Beheer</button></div>
                                 ) : (
-                                    sortedShelves.map(shelf => {
+                                    sortedShelvesForDisplay.map(shelf => {
                                         const isExpanded = expandedShelves.includes(shelf.id);
                                         const shelfBooks = processedBooks.filter(b => b.shelfId === shelf.id);
                                         if (searchQuery && shelfBooks.length === 0) return null;
@@ -1214,7 +1265,13 @@ function BoekenApp() {
                                                     onClick={() => !isDragMode && toggleShelf(shelf.id)}
                                                 >
                                                     <div>
-                                                        <h3 className="text-2xl font-black flex items-center gap-3">{shelf.name} <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span></h3>
+                                                        <h3 className="text-2xl font-black flex items-center gap-3">
+                                                            {shelf.name} 
+                                                            <span className="text-sm text-stone-500 bg-stone-100 px-3 py-1 rounded-full">{shelfBooks.length}</span>
+                                                            {shelf._owner && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md font-bold whitespace-nowrap hidden sm:inline-block">👤 Van {shelf._owner}</span>}
+                                                        </h3>
+                                                        {shelf._owner && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md font-bold whitespace-nowrap sm:hidden mt-2 inline-block">👤 Van {shelf._owner}</span>}
+                                                        
                                                         {shelf.description && isExpanded && <p className="text-sm text-stone-500 mt-2 font-medium bg-stone-50 p-2 rounded-lg inline-block border border-stone-100">{shelf.description}</p>}
                                                         {shelf.tags && isExpanded && (
                                                             <div className="flex flex-wrap gap-1 mt-2">
@@ -1429,13 +1486,13 @@ function BoekenApp() {
                                 <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-md border border-stone-200/60">
                                     <h3 className="text-lg font-black text-stone-800 mb-4 pl-2">Mijn Schappen</h3>
                                     <div className="space-y-4">
-                                        {sortedShelves.map((shelf, index) => (
+                                        {myShelves.sort((a,b) => (a.order||0)-(b.order||0)).map((shelf, index) => (
                                             <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 pl-6 bg-stone-50 rounded-2xl border border-stone-200 gap-4 transition-all hover:bg-stone-100 relative overflow-hidden">
                                                 <div className={`absolute top-0 left-0 w-3 h-full ${shelf.color || 'bg-amber-500'}`}></div>
                                                 <div className="flex items-center gap-4">
                                                     <div className="flex flex-col gap-1 hidden sm:flex">
                                                         <button onClick={() => handleMoveShelf(index, -1)} disabled={index === 0} className="text-stone-400 hover:text-amber-500 disabled:opacity-30"><ArrowUp size={18}/></button>
-                                                        <button onClick={() => handleMoveShelf(index, 1)} disabled={index === sortedShelves.length - 1} className="text-stone-400 hover:text-amber-500 disabled:opacity-30"><ArrowDown size={18}/></button>
+                                                        <button onClick={() => handleMoveShelf(index, 1)} disabled={index === myShelves.length - 1} className="text-stone-400 hover:text-amber-500 disabled:opacity-30"><ArrowDown size={18}/></button>
                                                     </div>
                                                     <div>
                                                         <p className="font-bold text-lg text-stone-800">{shelf.name}</p>
@@ -1452,11 +1509,11 @@ function BoekenApp() {
                                                 <div className="flex items-center gap-2 w-full sm:w-auto">
                                                     <div className="flex sm:hidden mr-auto gap-2">
                                                         <button onClick={() => handleMoveShelf(index, -1)} disabled={index === 0} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowUp size={16}/></button>
-                                                        <button onClick={() => handleMoveShelf(index, 1)} disabled={index === sortedShelves.length - 1} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowDown size={16}/></button>
+                                                        <button onClick={() => handleMoveShelf(index, 1)} disabled={index === myShelves.length - 1} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowDown size={16}/></button>
                                                     </div>
                                                     <button onClick={() => setShareShelfData({ isOpen: true, shelfId: shelf.id, shelfName: shelf.name, email: '', loading: false, msg: '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Share2 size={16}/> Deel / Push</button>
                                                     <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '', color: shelf.color || 'bg-amber-500', tags: shelf.tags || '' })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-stone-200 text-stone-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-stone-100"><Edit3 size={16}/> Bewerk</button>
-                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
+                                                    <button onClick={() => handleDeleteShelf(shelf.id, shelf.name, shelf._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                                 </div>
                                                 
                                                 {shelf.sharedWith && shelf.sharedWith.length > 0 && (
@@ -1475,6 +1532,30 @@ function BoekenApp() {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* SAMENGEVOEGDE SCHAPPEN WEERGAVE */}
+                                    {impShelves.length > 0 && (
+                                        <>
+                                            <h3 className="text-lg font-black text-purple-800 mt-8 mb-4 pl-2">Schappen van {impersonatedUser.name}</h3>
+                                            <div className="space-y-4">
+                                                {impShelves.sort((a,b) => (a.order||0)-(b.order||0)).map((shelf, index) => (
+                                                    <div key={shelf.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 pl-6 bg-purple-50 rounded-2xl border border-purple-200 gap-4 transition-all hover:bg-purple-100 relative overflow-hidden">
+                                                        <div className={`absolute top-0 left-0 w-3 h-full ${shelf.color || 'bg-purple-500'}`}></div>
+                                                        <div className="flex items-center gap-4">
+                                                            <div>
+                                                                <p className="font-bold text-lg text-purple-900">{shelf.name}</p>
+                                                                {shelf.description && <p className="text-xs text-purple-600 truncate max-w-xs">{shelf.description}</p>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                            <button onClick={() => setEditShelfData({ isOpen: true, id: shelf.id, name: shelf.name, description: shelf.description || '', color: shelf.color || 'bg-amber-500', tags: shelf.tags || '', _ownerUid: shelf._ownerUid })} className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-white border border-purple-200 text-purple-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-50"><Edit3 size={16}/> Bewerk</button>
+                                                            <button onClick={() => handleDeleteShelf(shelf.id, shelf.name, shelf._ownerUid)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -1496,7 +1577,7 @@ function BoekenApp() {
                             </div>
                         )}
 
-                        {activeTab === 'admin' && userData.role === 'admin' && !impersonatedUser && (
+                        {activeTab === 'admin' && userData.role === 'admin' && (
                             <div className="max-w-5xl mx-auto space-y-6">
                                 <h2 className="text-3xl font-black flex items-center gap-3"><Shield className="text-red-500" size={36}/> Systeem Beheer</h2>
                                 
@@ -1513,7 +1594,7 @@ function BoekenApp() {
                                                         <td className="p-4 flex justify-end gap-2">
                                                             {u.uid !== user.uid && (
                                                                 <>
-                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Beheer</button>
+                                                                    <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="text-xs flex items-center gap-1 bg-stone-900 text-white px-2 py-1.5 rounded-lg"><ArrowLeftRight size={14}/> Samenvoegen</button>
                                                                     <button onClick={() => toggleAdminRole(u.uid, u.role)} className="text-xs flex items-center gap-1 bg-white border border-stone-300 text-stone-700 px-2 py-1.5 rounded-lg hover:bg-stone-100 font-medium"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
                                                                 </>
                                                             )}
@@ -1535,7 +1616,7 @@ function BoekenApp() {
                                                 </div>
                                                 {u.uid !== user.uid && (
                                                     <div className="flex gap-2 mt-1">
-                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Beheer</button>
+                                                        <button onClick={() => { setImpersonatedUser(u); switchTab('alle'); }} className="flex-1 flex justify-center items-center gap-1 bg-stone-900 text-white py-2 rounded-lg text-xs font-bold shadow-sm"><ArrowLeftRight size={14}/> Samenvoegen</button>
                                                         <button onClick={() => toggleAdminRole(u.uid, u.role)} className="flex-1 flex justify-center items-center gap-1 bg-white border border-stone-300 text-stone-700 py-2 rounded-lg hover:bg-stone-100 text-xs font-bold"><Shield size={14}/> {u.role === 'admin' ? 'Maak User' : 'Maak Admin'}</button>
                                                     </div>
                                                 )}
@@ -1670,7 +1751,14 @@ function BoekenApp() {
                                         <select required value={newBook.shelfId} onChange={e => setNewBook({...newBook, shelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold bg-white outline-none text-sm">
                                             <option value="" disabled>Kies een locatie...</option>
                                             <option value="wishlist" className="text-amber-600 font-black">⭐ Wensenlijst</option>
-                                            {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                            <optgroup label="Mijn Schappen">
+                                                {myShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                            </optgroup>
+                                            {impShelves.length > 0 && (
+                                                <optgroup label={`Schappen van ${impersonatedUser.name}`}>
+                                                    {impShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                                </optgroup>
+                                            )}
                                         </select>
                                     </div>
                                     <div className="sm:col-span-2 mt-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
@@ -1708,7 +1796,9 @@ function BoekenApp() {
                                 <select required value={copyBookData.targetShelfId} onChange={e => setCopyBookData({...copyBookData, targetShelfId: e.target.value})} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
                                     <option value="" disabled>Selecteer een schap...</option>
                                     <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
-                                    {sortedShelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    <optgroup label="Mijn Schappen">
+                                        {myShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </optgroup>
                                 </select>
                             </div>
                             <div className="flex justify-end gap-3">
@@ -1777,11 +1867,14 @@ function BoekenApp() {
                                                     <div key={log.id} className="flex justify-between items-center bg-stone-50 p-2 pr-3 rounded-xl border border-stone-200">
                                                         <div className="flex items-center gap-3 overflow-hidden">
                                                             {log.cover ? <img src={log.cover} className="w-8 h-10 object-cover rounded shadow-sm flex-shrink-0" /> : <div className="w-8 h-10 bg-white border border-stone-200 flex items-center justify-center rounded shadow-sm flex-shrink-0"><Book size={12} className="text-stone-300"/></div>}
-                                                            <span className="font-bold text-sm text-stone-700 truncate">{log.title}</span>
+                                                            <div>
+                                                                <span className="font-bold text-sm text-stone-700 truncate block">{log.title}</span>
+                                                                {log._owner && <span className="text-[10px] text-purple-600 font-bold">Van {log._owner}</span>}
+                                                            </div>
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             <button type="button" onClick={() => setCalendarLogData({...calendarLogData, bookId: log.bookId || '', pagesRead: books.find(b => b.id === log.bookId)?.pagesRead || ''})} className="p-2 text-stone-500 hover:bg-stone-200 bg-white rounded-lg border border-stone-200 transition-colors shadow-sm flex-shrink-0"><Edit3 size={16}/></button>
-                                                            <button type="button" onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-500 hover:bg-red-100 bg-white rounded-lg border border-red-100 transition-colors shadow-sm flex-shrink-0"><Trash2 size={16}/></button>
+                                                            <button type="button" onClick={() => handleDeleteLog(log.id, log._ownerUid)} className="p-2 text-red-500 hover:bg-red-100 bg-white rounded-lg border border-red-100 transition-colors shadow-sm flex-shrink-0"><Trash2 size={16}/></button>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -1802,7 +1895,14 @@ function BoekenApp() {
                                             setCalendarLogData({...calendarLogData, bookId: selectedId, pagesRead: book ? book.pagesRead : ''});
                                         }} className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 font-bold bg-stone-50 outline-none focus:bg-white focus:border-amber-500">
                                             <option value="" disabled>Selecteer een boek...</option>
-                                            {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                                            <optgroup label="Mijn Boeken">
+                                                {myBooks.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                                            </optgroup>
+                                            {impBooks.length > 0 && (
+                                                <optgroup label={`Boeken van ${impersonatedUser.name}`}>
+                                                    {impBooks.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                                                </optgroup>
+                                            )}
                                         </select>
                                     </div>
                                 )}
@@ -1867,6 +1967,7 @@ function BoekenApp() {
                             {selectedBook.cover ? (<img src={selectedBook.cover} alt={selectedBook.title} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center bg-stone-200 text-stone-400 p-6"><Book size={64} /></div>)}
                             <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="md:hidden absolute top-4 right-4 text-white bg-black/40 p-2 rounded-full"><X size={20} /></button>
                             {selectedBook.shelfId === 'wishlist' && <div className="absolute top-4 left-4 bg-amber-500 text-white px-3 py-1 rounded-full font-bold text-xs shadow-md">Wensenlijst</div>}
+                            {selectedBook._owner && <div className="absolute bottom-4 left-4 right-4 bg-purple-600/90 backdrop-blur-md text-white px-3 py-2 rounded-xl font-bold text-xs shadow-lg text-center">Boek van {selectedBook._owner}</div>}
                         </div>
                         
                         <div className="p-0 flex flex-col bg-white overflow-hidden md:w-3/5 flex-1">
@@ -1893,7 +1994,7 @@ function BoekenApp() {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1 sm:gap-2">
-                                        {/* ADMIN PUSH KNOP (Alleen voor admins) */}
+                                        {/* ADMIN PUSH KNOP (Alleen voor admins, niet voor bewerkte schermen) */}
                                         {userData && userData.role === 'admin' && !isEditingBook && (
                                             <button onClick={() => setAdminPushData({ isOpen: true, book: selectedBook, targetUid: '', targetShelfId: '' })} className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
                                                 <SendToBack size={16}/> <span className="hidden sm:inline">Push</span>
@@ -1958,7 +2059,14 @@ function BoekenApp() {
                                                 <label className="block text-xs font-bold text-stone-700 mb-1">Locatie</label>
                                                 <select required value={editBookData.shelfId} onChange={e => setEditBookData({...editBookData, shelfId: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none font-bold">
                                                     <option value="wishlist" className="text-amber-600">⭐ Wensenlijst</option>
-                                                    {sortedShelves.map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                                    <optgroup label="Mijn Schappen">
+                                                        {myShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                                    </optgroup>
+                                                    {impShelves.length > 0 && (
+                                                        <optgroup label={`Schappen van ${impersonatedUser.name}`}>
+                                                            {impShelves.sort((a,b)=>(a.order||0)-(b.order||0)).map(s => <option key={s.id} value={s.id}>📚 {s.name}</option>)}
+                                                        </optgroup>
+                                                    )}
                                                 </select>
                                             </div>
                                             <div><label className="block text-xs font-bold text-stone-700 mb-1">Totaal {editBookData.format === 'audio' ? 'Minuten' : "Pagina's"}</label><input type="number" value={editBookData.totalPages} onChange={e => setEditBookData({...editBookData, totalPages: e.target.value})} className="w-full border-2 border-white rounded-xl px-3 py-2 bg-white outline-none" /></div>
@@ -1978,11 +2086,12 @@ function BoekenApp() {
                                             <ReadingTimer 
                                                 book={selectedBook} 
                                                 onSave={async (endPage, timeInSeconds) => {
-                                                    await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'books', selectedBook.id), { pagesRead: parseInt(endPage) });
+                                                    const ownerUid = selectedBook._ownerUid || user.uid;
+                                                    await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { pagesRead: parseInt(endPage) });
                                                     const origPages = parseInt(selectedBook.pagesRead) || 0;
                                                     if (parseInt(endPage) > origPages) {
                                                         const todayStr = getTodayString();
-                                                        await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', `${todayStr}_${selectedBook.id}`), {
+                                                        await setDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'readingLog', `${todayStr}_${selectedBook.id}`), {
                                                             date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null
                                                         }, { merge: true });
                                                     }
@@ -2224,7 +2333,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                         className={`group relative flex flex-col transition-all hover:-translate-y-2 ${isDragMode ? 'cursor-move animate-pulse-slow ring-2 ring-amber-500 rounded-2xl bg-white p-1' : 'cursor-pointer'}`} 
                         onClick={() => !isDragMode && onSelect(book)}
                     >
-                        <div className="aspect-[2/3] bg-stone-200 rounded-2xl overflow-hidden shadow-md mb-2 relative border border-stone-200/50">
+                        <div className={`aspect-[2/3] rounded-2xl overflow-hidden shadow-md mb-2 relative border ${book._owner ? 'border-purple-300 bg-purple-50' : 'border-stone-200/50 bg-stone-200'}`}>
                             {book.cover && !book.cover.includes('placeholder') ? (<img src={book.cover} alt={book.title} className="w-full h-full object-cover" draggable="false" />) : (<div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br p-2 text-center"><Book className="text-stone-300 mb-1" size={24} /></div>)}
                             
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/90 to-transparent p-1 pt-6 transform translate-y-full group-hover:translate-y-0 transition-transform">
@@ -2233,7 +2342,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                             
                             {/* GELEEND LABEL */}
                             {book.isBorrowed && (
-                                <div className="absolute top-1.5 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-2 py-0.5 rounded-md shadow-md text-[8px] font-black tracking-widest uppercase z-10 flex items-center gap-1">
+                                <div className="absolute top-1.5 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-2 py-0.5 rounded-md shadow-md text-[8px] font-black tracking-widest uppercase z-10 flex items-center gap-1 whitespace-nowrap">
                                     <ArrowDown size={10} strokeWidth={3}/> Geleend
                                 </div>
                             )}
@@ -2255,6 +2364,7 @@ function BookList({ books, onSelect, isDragMode, onDragStart }) {
                         </div>
                         {!isDragMode && <div className="w-full bg-stone-200/80 rounded-full h-1 mb-1"><div className={`h-full rounded-full ${isFinished ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }}></div></div>}
                         <h4 className="font-bold text-[10px] sm:text-xs text-stone-800 leading-tight line-clamp-2">{book.title}</h4>
+                        {book._owner && <p className="text-[9px] text-purple-600 font-bold truncate mt-0.5">👤 Van {book._owner}</p>}
                     </div>
                 );
             })}
