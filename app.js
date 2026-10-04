@@ -5,7 +5,7 @@ import {
     CheckCircle2, X, Trash2, Edit3, Camera, Search, Book, 
     BarChart, AlertCircle, Check, Info, LogOut, Users, Shield, ArrowLeftRight,
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
-    ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move
+    ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -37,9 +37,9 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
+    { version: "10.2.0", date: "Oktober 2026", changes: ["Bugfix: 'Bewerk' knop bij boeken is nu ook zichtbaar op smartphones!", "Debounce tijd (wachttijd zoeken) verhoogd naar 1,5 sec om Google API blokkades definitief te voorkomen", "Visuele feedback (laad-icoontje) toegevoegd bij het scannen van een ISBN"] },
     { version: "10.1.0", date: "Oktober 2026", changes: ["API Rate-Limit protectie (Voorkomt Google Books '429' ban)", "Zoekfunctie wachttijd verhoogd naar 1,2 sec voor stabiliteit"] },
     { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' functionaliteit", "Nieuwe 'Gelezen' lijst", "Sterren-beoordeling en reviews voor uitgelezen boeken"] },
-    { version: "9.2.0", date: "Oktober 2026", changes: ["Modal bugs gefixt (Nieuw schap werkte niet)", "Google Books suggesties veilig ingesteld met Debounce", "Lees streak dagen GIGANTISCH gemaakt op desktopweergave"] }
 ];
 
 function BoekenApp() {
@@ -73,7 +73,7 @@ function BoekenApp() {
     const [editBookData, setEditBookData] = useState(null);
     const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
-    const [apiLimitError, setApiLimitError] = useState(false); // Nieuwe state voor 429 fout
+    const [apiLimitError, setApiLimitError] = useState(false); 
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
     const [isDragMode, setIsDragMode] = useState(false);
 
@@ -167,7 +167,7 @@ function BoekenApp() {
     const requestConfirm = (text, action) => setConfirmDialog({ isOpen: true, text, action });
     const executeConfirm = () => { if (confirmDialog.action) confirmDialog.action(); setConfirmDialog({ isOpen: false, text: '', action: null }); };
 
-    // API Fetches met Rate-Limit Herkenning
+    // API Fetches met verbeterde 429 Error Handling
     const fetchBookData = async (isbnToFetch) => {
         const queryIsbn = isbnToFetch || newBook.isbn;
         if (!queryIsbn) return;
@@ -203,14 +203,14 @@ function BoekenApp() {
         const q = e.target.value;
         setNewBook({...newBook, title: q});
         
-        // Vernietig vorige timeout (Dit heet debouncen)
+        // Vernietig vorige timeout (Debounce)
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         if(q.length < 3) { setTitleSuggestions([]); setIsSearchingTitle(false); setApiLimitError(false); return; }
         
         setIsSearchingTitle(true);
         setApiLimitError(false);
         
-        // Verhoogde wachttijd naar 1200ms om de 429 Google Ban te voorkomen
+        // Verhoogde wachttijd naar 1500ms (1.5s) om Google Ban definitief te voorkomen
         searchTimeoutRef.current = setTimeout(async () => {
             let combinedResults = [];
             let hitLimit = false;
@@ -243,7 +243,7 @@ function BoekenApp() {
             const uniqueResults = Array.from(new Map(combinedResults.map(item => [item.title?.toLowerCase(), item])).values());
             setTitleSuggestions(uniqueResults.slice(0, 6));
             setIsSearchingTitle(false);
-        }, 1200); // 1.2 seconden wachttijd
+        }, 1500); // 1.5 seconden wachttijd
     };
 
     const selectTitleSuggestion = (item) => {
@@ -706,7 +706,6 @@ function BoekenApp() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                                                    {/* Mobiele pijltjes */}
                                                     <div className="flex sm:hidden mr-auto gap-2">
                                                         <button onClick={() => handleMoveShelf(index, -1)} disabled={index === 0} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowUp size={16}/></button>
                                                         <button onClick={() => handleMoveShelf(index, 1)} disabled={index === sortedShelves.length - 1} className="p-2 bg-white rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30"><ArrowDown size={16}/></button>
@@ -819,11 +818,13 @@ function BoekenApp() {
                                 <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-1"><Search size={14}/> Snel via ISBN</label>
                                 <div className="flex gap-2">
                                     <input type="text" placeholder="Typ ISBN..." value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn: e.target.value})} className="flex-1 border border-amber-300/50 rounded-lg px-3 py-2 bg-white outline-none text-sm" />
-                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm">Zoek</button>
-                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold"><Camera size={16} /></button>
+                                    <button type="button" onClick={() => fetchBookData()} disabled={isFetchingIsbn} className="bg-amber-200 text-amber-900 px-3 py-2 rounded-lg font-bold text-sm min-w-[70px] flex justify-center items-center">
+                                        {isFetchingIsbn ? <Loader2 size={16} className="animate-spin" /> : 'Zoek'}
+                                    </button>
+                                    <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center"><Camera size={16} /></button>
                                 </div>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
-                                {apiLimitError && <p className="text-red-600 font-bold text-xs mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14}/> Google API beveiliging actief. Wacht even met zoeken of typ langzamer.</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-xs mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14}/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken). Wacht heel even.</p>}
                             </div>
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -831,7 +832,7 @@ function BoekenApp() {
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
                                         
-                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem tijdelijk overbelast: stop even met typen.</p>}
+                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem overbelast: stop even 1 minuut met typen.</p>}
 
                                         {isSearchingTitle && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
@@ -955,7 +956,7 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* View/Edit Book Modal */}
+            {/* View/Edit Book Modal - NU MET ALTIJD ZICHTBARE BEWERK KNOP OP MOBIEL */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[95vh]">
@@ -964,15 +965,17 @@ function BoekenApp() {
                             <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="md:hidden absolute top-4 right-4 text-white bg-black/40 p-2 rounded-full"><X size={20} /></button>
                             {selectedBook.shelfId === 'wishlist' && <div className="absolute top-4 left-4 bg-amber-500 text-white px-3 py-1 rounded-full font-bold text-xs shadow-md">Wensenlijst</div>}
                         </div>
-                        <div className="p-6 md:p-8 md:w-7/12 flex flex-col bg-white overflow-y-auto">
+                        <div className="p-5 md:p-8 md:w-7/12 flex flex-col bg-white overflow-y-auto">
                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-2xl font-black mb-1">{selectedBook.title}</h3>
-                                    <p className="text-lg text-stone-500 font-medium">{selectedBook.author}</p>
+                                <div className="flex-1 pr-2">
+                                    <h3 className="text-xl sm:text-2xl font-black mb-1 leading-tight">{selectedBook.title}</h3>
+                                    <p className="text-base sm:text-lg text-stone-500 font-medium">{selectedBook.author}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 sm:gap-2">
                                     {!isEditingBook && (
-                                        <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="hidden md:flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors"><Edit3 size={16}/> Bewerk</button>
+                                        <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
+                                            <Edit3 size={16}/> <span className="hidden sm:inline">Bewerk</span>
+                                        </button>
                                     )}
                                     <button onClick={() => { setSelectedBook(null); setIsEditingBook(false); }} className="hidden md:block bg-stone-100 p-2 rounded-full"><X size={24} /></button>
                                 </div>
