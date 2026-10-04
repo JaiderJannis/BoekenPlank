@@ -38,7 +38,8 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "11.2.0", date: "Oktober 2026", changes: ["Bugfix: Leesstreak wordt nu correct automatisch gehaald als je pagina's updatet", "Gelezen boeken zijn nu weer zichtbaar in Alle Boeken en Schappen (met groen vinkje)", "Bewerk-knop is nu altijd volledig zichtbaar op smartphones"] },
+    { version: "11.3.0", date: "Oktober 2026", changes: ["NIEUW: Je kunt je lees-streak voor vandaag nu 'Uitvinken' (ongedaan maken) als je een foutje hebt gemaakt", "Uitgelezen boeken blijven nu 100% zichtbaar in Alle Boeken en Schappen (met vinkje)"] },
+    { version: "11.2.0", date: "Oktober 2026", changes: ["Bugfix: Leesstreak wordt nu correct automatisch gehaald als je pagina's updatet", "Bewerk-knop is nu altijd volledig zichtbaar op smartphones"] },
     { version: "11.1.0", date: "Oktober 2026", changes: ["NIEUW: 'Plan B' handmatige Google Zoek-knoppen toegevoegd bij netwerk/API blokkades", "Verduidelijking toegevoegd bij falende ISBN scanner"] },
     { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen"] },
 ];
@@ -452,7 +453,6 @@ function BoekenApp() {
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '' });
     };
 
-    // Fix voor de auto-update streak
     const handleLogReading = async (silent = false) => {
         if (!activeUserId) return;
         const today = new Date().toISOString();
@@ -460,7 +460,6 @@ function BoekenApp() {
         
         if (isToday(stats.lastReadDate)) { 
             if (!silent) return; // Als we op de knop drukken en het is al vandaag, doe niets.
-            // Als we een boek updaten (silent = true) en we hebben al gelezen vandaag, houden we de streak gelijk.
         } else if (isYesterday(stats.lastReadDate)) {
             streak += 1; 
         } else {
@@ -468,6 +467,21 @@ function BoekenApp() {
         }
         
         await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: streak, lastReadDate: today }, { merge: true });
+    };
+
+    // NIEUW: Functie om lees-streak ongedaan te maken
+    const handleUndoLogReading = async () => {
+        if (!activeUserId) return;
+        requestConfirm("Heb je je vergist en wil je de lees-streak van vandaag ongedaan maken?", async () => {
+            let newStreak = Math.max(0, (stats.currentStreak || 1) - 1);
+            let newLastReadDate = null;
+            if (newStreak > 0) {
+                const y = new Date();
+                y.setDate(y.getDate() - 1); // Terugzetten naar gisteren
+                newLastReadDate = y.toISOString();
+            }
+            await setDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'profile', 'stats'), { currentStreak: newStreak, lastReadDate: newLastReadDate }, { merge: true });
+        });
     };
 
     const switchTab = (tab) => { setActiveTab(tab); setIsMobileMenuOpen(false); setSearchQuery(''); setIsDragMode(false); setTitleSuggestions([]); setApiLimitError(false); };
@@ -656,8 +670,8 @@ function BoekenApp() {
                                         </div>
                                     </div>
                                     <div className="w-full lg:w-auto flex justify-end mt-2 lg:mt-0">
-                                        <button onClick={() => handleLogReading(false)} disabled={hasReadToday} className={`w-full lg:w-auto px-4 py-3 sm:py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm ${hasReadToday ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
-                                            {hasReadToday ? <><CheckCircle2 size={16}/> Vandaag Gelezen</> : 'Gelezen!'}
+                                        <button onClick={() => hasReadToday ? handleUndoLogReading() : handleLogReading(false)} className={`w-full lg:w-auto px-4 py-3 sm:py-2 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-md text-sm sm:text-base ${hasReadToday ? 'bg-white text-green-600 border-2 border-green-500 hover:bg-red-50 hover:text-red-600 hover:border-red-500' : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-lg'}`}>
+                                            {hasReadToday ? <><CheckCircle2 size={18}/> Gelezen Vandaag <span className="text-[10px] sm:text-xs text-stone-400 ml-1 font-normal underline">(Uitvinken)</span></> : 'Gelezen!'}
                                         </button>
                                     </div>
                                 </div>
