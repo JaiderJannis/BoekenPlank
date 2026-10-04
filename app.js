@@ -38,8 +38,8 @@ const toDateString = (dateObj) => {
 
 // Changelog Data
 const CHANGELOG = [
-    { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen", "Bugfix: Bewerk-knop is nu altijd zichtbaar op smartphones", "Foutafhandeling scanner en zoekfunctie verbeterd voor API-limieten"] },
-    { version: "10.2.0", date: "Oktober 2026", changes: ["API Rate-Limit protectie verbeterd", "Zoekfunctie wachttijd verhoogd voor stabiliteit"] },
+    { version: "11.1.0", date: "Oktober 2026", changes: ["NIEUW: 'Plan B' handmatige Google Zoek-knoppen toegevoegd bij netwerk/API blokkades", "Verduidelijking toegevoegd bij falende ISBN scanner"] },
+    { version: "11.0.0", date: "Oktober 2026", changes: ["NIEUW: Notities & Quotes per boek toevoegen", "NIEUW: Uitleenbeheer! Houd bij aan wie je een boek hebt uitgeleend", "Boek-details menu omgebouwd met tabbladen", "Bugfix: Bewerk-knop is nu altijd zichtbaar op smartphones"] },
     { version: "10.0.0", date: "Oktober 2026", changes: ["Slepen (Drag & Drop) van boeken tussen schappen toegevoegd", "Schappen volgorde wijzigen via pijltjes in Beheer", "Nieuwe 'Wensenlijst' en 'Gelezen' functionaliteit"] },
 ];
 
@@ -207,7 +207,7 @@ function BoekenApp() {
             } catch (e) { console.warn('OpenLibrary ISBN fetch error:', e); }
         }
         if (foundBook) setNewBook(p => ({ ...p, title: foundBook.title || p.title, author: foundBook.author || p.author, cover: foundBook.cover || p.cover, totalPages: foundBook.totalPages || p.totalPages }));
-        else if (apiLimitError) setErrorMsg('Te veel opdrachten! Scanner en Google zoeken tijdelijk geblokkeerd. Wacht 1 minuut.');
+        else if (apiLimitError) setErrorMsg('Te veel opdrachten! API tijdelijk geblokkeerd. Typ hieronder handmatig de titel en gebruik de Google-knoppen.');
         else setErrorMsg('Geen boek gevonden op dit ISBN.');
         
         setIsFetchingIsbn(false);
@@ -880,8 +880,9 @@ function BoekenApp() {
                                     </button>
                                     <button type="button" onClick={() => setIsScannerOpen(true)} className="bg-stone-900 text-white px-3 py-2 rounded-lg font-bold flex justify-center items-center"><Camera size={16} /></button>
                                 </div>
+                                <p className="text-[9px] text-amber-700 mt-2 font-medium">Lukt scannen niet? Typ de cijfers over. Werkt zoeken niet door een blokkade? Gebruik dan de Google-knoppen hieronder.</p>
                                 {errorMsg && <p className="text-red-600 font-medium text-xs mt-2">{errorMsg}</p>}
-                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken tegelijk). Wacht even 1 minuut.</p>}
+                                {apiLimitError && <p className="text-red-600 font-bold text-[10px] mt-2 bg-red-100 p-2 rounded-lg border border-red-200 flex items-center gap-1"><AlertCircle size={14} className="flex-shrink-0"/> Google blokkeert zoekopdrachten tijdelijk (te veel verzoeken tegelijk op jouw WiFi).</p>}
                             </div>
                             <form onSubmit={handleAddBook} className={`space-y-3 relative ${titleSuggestions.length > 0 || isSearchingTitle ? 'pb-48' : ''}`}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -889,7 +890,17 @@ function BoekenApp() {
                                         <label className="block text-xs font-bold text-stone-700 mb-1">Titel of Auteur (typt voor suggesties) *</label>
                                         <input type="text" required value={newBook.title} onChange={handleTitleChange} className={`w-full border-2 rounded-lg px-3 py-2 bg-stone-50 focus:bg-white outline-none text-sm transition-colors ${apiLimitError ? 'border-red-400' : 'border-stone-200 focus:border-amber-400'}`} placeholder="Bijv. De Hobbit of Tolkien" />
                                         
-                                        {apiLimitError && <p className="text-red-500 font-bold text-[10px] mt-1">Systeem overbelast: stop even met typen.</p>}
+                                        {/* De nieuwe handmatige 'Plan B' Google knoppen */}
+                                        {newBook.title && (
+                                            <div className="flex flex-wrap gap-2 mt-2 z-10 relative">
+                                                <a href={`https://www.google.be/search?tbm=isch&q=${encodeURIComponent('boek cover ' + newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 font-bold flex items-center transition-colors shadow-sm">
+                                                    <Search size={12} className="mr-1"/> Zoek Kaft op Google
+                                                </a>
+                                                <a href={`https://www.google.be/search?tbm=bks&q=${encodeURIComponent(newBook.title)}`} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-stone-100 text-stone-600 hover:bg-stone-200 px-2 py-1.5 rounded-md border border-stone-200 font-bold flex items-center transition-colors shadow-sm">
+                                                    <Search size={12} className="mr-1"/> Zoek Boek Info
+                                                </a>
+                                            </div>
+                                        )}
 
                                         {isSearchingTitle && !apiLimitError && (
                                             <div className="absolute z-[100] left-0 right-0 top-full mt-2 bg-white border-2 border-amber-300 rounded-xl shadow-2xl p-4 text-center">
@@ -1013,7 +1024,7 @@ function BoekenApp() {
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
             )}
 
-            {/* View/Edit Book Modal - MEGA UPDATE MET TABS EN MOBIELE KNOP */}
+            {/* View/Edit Book Modal */}
             {selectedBook && (
                 <div className="fixed inset-0 bg-stone-900/70 flex items-center justify-center p-2 sm:p-4 z-[90] backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto md:max-h-[90vh]">
@@ -1036,7 +1047,6 @@ function BoekenApp() {
                                         <p className="text-base sm:text-lg text-stone-500 font-medium">{selectedBook.author}</p>
                                     </div>
                                     <div className="flex items-center gap-1 sm:gap-2">
-                                        {/* BEWERK KNOP: Nu flex in plaats van hidden md:flex zodat hij altijd zichtbaar is */}
                                         {!isEditingBook && (
                                             <button onClick={() => { setEditBookData(selectedBook); setIsEditingBook(true); }} className="flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-2 rounded-xl font-bold transition-colors text-sm">
                                                 <Edit3 size={16}/> <span className="hidden sm:inline">Bewerk</span>
@@ -1061,7 +1071,6 @@ function BoekenApp() {
                             {/* Content Area */}
                             <div className="p-5 md:p-6 overflow-y-auto flex-1 flex flex-col bg-stone-50/50">
                                 {isEditingBook && editBookData ? (
-                                    /* BEWERK FORMULIER */
                                     <form onSubmit={handleUpdateBookDetails} className="bg-amber-50 p-5 rounded-2xl border border-amber-200 space-y-4">
                                         <div className="flex justify-between items-center mb-2">
                                             <h4 className="font-bold text-amber-900">Boekgegevens wijzigen</h4>
