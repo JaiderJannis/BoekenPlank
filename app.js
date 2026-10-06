@@ -192,6 +192,14 @@ function BoekenApp() {
 
     useEffect(() => {
         if ('serviceWorker' in navigator) {
+            // Forceer verwijdering van oude kapotte "blob" service workers uit het cachegeheugen
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    if(registration.active && registration.active.scriptURL.includes('blob:')) {
+                        registration.unregister();
+                    }
+                }
+            });
             // We gebruiken geen 'blob' meer want dat blokkeert GitHub Pages en veroorzaakt crashes.
             // LET OP: Maak simpelweg een leeg bestand aan genaamd 'sw.js' op je GitHub!
             navigator.serviceWorker.register('./sw.js').catch(err => {
@@ -199,6 +207,39 @@ function BoekenApp() {
             });
         }
     }, []);
+
+    const myLogsByDate = myLogs.reduce((acc, log) => { 
+        if (!acc[log.date]) acc[log.date] = []; 
+        acc[log.date].push(log); 
+        return acc; 
+    }, {});
+    const todayStr = getTodayString();
+    const hasReadToday = !!myLogsByDate[todayStr];
+    const overdueFriends = books.filter(b => b.lentTo && b.lentDate && (new Date() - new Date(b.lentDate)) / (1000 * 3600 * 24) > 30);
+    const overdueLibrary = books.filter(b => b.isBorrowed && b.borrowedLibraryId && b.borrowedDueDate && new Date(b.borrowedDueDate) < new Date());
+    const currentHour = new Date().getHours();
+    const needsDailyReminder = !hasReadToday && currentHour >= 18;
+
+    useEffect(() => {
+        if (!notificationsAllowed) return;
+        
+        const lastNotified = localStorage.getItem('lastNotificationSent');
+        
+        // Zorg dat we maximaal 1 notificatie per dag sturen
+        if (lastNotified !== todayStr) {
+            let notificationText = '';
+            if (overdueLibrary.length > 0) notificationText += `Je hebt ${overdueLibrary.length} bibliotheekboeken die te laat zijn! `;
+            if (needsDailyReminder) notificationText += `Vergeet niet je lees-sessie van vandaag te registreren!`;
+            
+            if (notificationText) {
+                new Notification("BoekenPlank Herinnering 📚", { 
+                    body: notificationText, 
+                    icon: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png" 
+                });
+                localStorage.setItem('lastNotificationSent', todayStr);
+            }
+        }
+    }, [books, needsDailyReminder, notificationsAllowed, overdueLibrary.length, todayStr]);
 
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
@@ -926,16 +967,6 @@ function BoekenApp() {
     if (!user) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"><div className="bg-gradient-to-br from-amber-400 to-orange-500 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Library className="text-white" size={40} /></div><h1 className="text-3xl font-black text-stone-800 mb-2">Boeken<span className="text-amber-500">Plank</span> Pro</h1><p className="text-stone-500 font-medium mb-10">Beheer je bibliotheek in de cloud.</p><button onClick={handleLogin} className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 px-6 rounded-xl shadow-xl">Inloggen met Google</button></div></div>;
     if (!userData) return <div className="flex-1 bg-stone-100 flex items-center justify-center p-4 min-h-screen"><div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"><h2 className="text-2xl font-black text-stone-800 mb-2">Welkom! 🎉</h2><form onSubmit={handleCreateProfile}><div className="mb-4"><label>Naam</label><input required value={profileForm.name} onChange={e=>setProfileForm({...profileForm, name: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><div className="mb-4"><label>E-mail</label><input required type="email" value={profileForm.email} onChange={e=>setProfileForm({...profileForm, email: e.target.value})} className="w-full border-2 p-2 rounded-xl" /></div><button type="submit" className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl">Start!</button></form></div></div>;
 
-    // Dynamische Streak:
-    const myLogsByDate = myLogs.reduce((acc, log) => { 
-        if (!acc[log.date]) acc[log.date] = []; 
-        acc[log.date].push(log); 
-        return acc; 
-    }, {});
-    
-    const todayStr = getTodayString();
-    const hasReadToday = !!myLogsByDate[todayStr];
-
     const calculateDynamicStreak = () => {
         if (Object.keys(myLogsByDate).length === 0) return 0;
         let streak = 0;
@@ -956,34 +987,6 @@ function BoekenApp() {
         return streak;
     };
     const currentStreak = calculateDynamicStreak();
-
-    // Notificaties / Waarschuwingen (Uitgeleend & Bibliotheek)
-    const overdueFriends = books.filter(b => b.lentTo && b.lentDate && (new Date() - new Date(b.lentDate)) / (1000 * 3600 * 24) > 30);
-    const overdueLibrary = books.filter(b => b.isBorrowed && b.borrowedLibraryId && b.borrowedDueDate && new Date(b.borrowedDueDate) < new Date());
-    const currentHour = new Date().getHours();
-    const needsDailyReminder = !hasReadToday && currentHour >= 18;
-
-    useEffect(() => {
-        if (!notificationsAllowed) return;
-        
-        const todayStr = getTodayString();
-        const lastNotified = localStorage.getItem('lastNotificationSent');
-        
-        // Zorg dat we maximaal 1 notificatie per dag sturen
-        if (lastNotified !== todayStr) {
-            let notificationText = '';
-            if (overdueLibrary.length > 0) notificationText += `Je hebt ${overdueLibrary.length} bibliotheekboeken die te laat zijn! `;
-            if (needsDailyReminder) notificationText += `Vergeet niet je lees-sessie van vandaag te registreren!`;
-            
-            if (notificationText) {
-                new Notification("BoekenPlank Herinnering 📚", { 
-                    body: notificationText, 
-                    icon: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png" 
-                });
-                localStorage.setItem('lastNotificationSent', todayStr);
-            }
-        }
-    }, [books, needsDailyReminder, notificationsAllowed]);
 
     const enableNotifications = async () => {
         if (!('Notification' in window)) {
