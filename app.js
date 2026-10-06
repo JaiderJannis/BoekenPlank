@@ -2856,4 +2856,3 @@ function BookList({ books, onSelect, isDragMode, onDragStart, allLibraries }) {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<BoekenApp />);
-```eof
