@@ -192,11 +192,11 @@ function BoekenApp() {
 
     useEffect(() => {
         if ('serviceWorker' in navigator) {
-            // Vereist voor échte iOS/Android Push Notificaties (PWA installatie)
-            const swCode = `self.addEventListener('fetch', function(e) { });`;
-            const blob = new Blob([swCode], { type: 'text/javascript' });
-            const swUrl = URL.createObjectURL(blob);
-            navigator.serviceWorker.register(swUrl).catch(console.error);
+            // We gebruiken geen 'blob' meer want dat blokkeert GitHub Pages en veroorzaakt crashes.
+            // LET OP: Maak simpelweg een leeg bestand aan genaamd 'sw.js' op je GitHub!
+            navigator.serviceWorker.register('./sw.js').catch(err => {
+                console.warn('Geen sw.js bestand gevonden. iOS push notificaties werken mogelijk beperkt.', err);
+            });
         }
     }, []);
 
