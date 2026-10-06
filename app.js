@@ -7,7 +7,7 @@ import {
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
     Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
-    Headphones, Tablet, Play, Square, Upload, FileUp, Filter, Copy, SendToBack, Bell
+    Headphones, Tablet, Play, Square, Upload, FileUp, Filter, Copy, SendToBack, Bell, BellRing, Sun, Moon
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import Papa from 'https://esm.sh/papaparse@5.4.1';
@@ -176,6 +176,29 @@ function BoekenApp() {
 
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, text: '', action: null });
     const [isDragMode, setIsDragMode] = useState(false);
+    
+    const [notificationsAllowed, setNotificationsAllowed] = useState(window.Notification && Notification.permission === 'granted');
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+
+    useEffect(() => {
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
+    }, [darkMode]);
+
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            // Vereist voor échte iOS/Android Push Notificaties (PWA installatie)
+            const swCode = `self.addEventListener('fetch', function(e) { });`;
+            const blob = new Blob([swCode], { type: 'text/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+            navigator.serviceWorker.register(swUrl).catch(console.error);
+        }
+    }, []);
 
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
@@ -940,6 +963,50 @@ function BoekenApp() {
     const currentHour = new Date().getHours();
     const needsDailyReminder = !hasReadToday && currentHour >= 18;
 
+    useEffect(() => {
+        if (!notificationsAllowed) return;
+        
+        const todayStr = getTodayString();
+        const lastNotified = localStorage.getItem('lastNotificationSent');
+        
+        // Zorg dat we maximaal 1 notificatie per dag sturen
+        if (lastNotified !== todayStr) {
+            let notificationText = '';
+            if (overdueLibrary.length > 0) notificationText += `Je hebt ${overdueLibrary.length} bibliotheekboeken die te laat zijn! `;
+            if (needsDailyReminder) notificationText += `Vergeet niet je lees-sessie van vandaag te registreren!`;
+            
+            if (notificationText) {
+                new Notification("BoekenPlank Herinnering 📚", { 
+                    body: notificationText, 
+                    icon: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png" 
+                });
+                localStorage.setItem('lastNotificationSent', todayStr);
+            }
+        }
+    }, [books, needsDailyReminder, notificationsAllowed]);
+
+    const enableNotifications = async () => {
+        if (!('Notification' in window)) {
+            showToast("Je apparaat/browser ondersteunt geen push-notificaties.", "error");
+            return;
+        }
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                setNotificationsAllowed(true);
+                new Notification("Succes! 🎉", { 
+                    body: "Notificaties staan nu aan voor BoekenPlank.", 
+                    icon: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png" 
+                });
+                showToast("Notificaties succesvol ingeschakeld!");
+            } else {
+                showToast("Notificaties zijn geweigerd via browserinstellingen.", "error");
+            }
+        } catch (err) {
+            showToast("Kon geen toestemming vragen.", "error");
+        }
+    };
+
     // Kalender: 
     const allLogsByDate = readingLogs.reduce((acc, log) => { 
         if (!acc[log.date]) acc[log.date] = []; 
@@ -1063,6 +1130,28 @@ function BoekenApp() {
 
     return (
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
+            <style>{`
+                .dark { color-scheme: dark; }
+                .dark body { background-color: #1c1917; color: #f5f5f4; }
+                .dark .bg-stone-100 { background-color: #1c1917 !important; }
+                .dark .bg-white { background-color: #292524 !important; border-color: #44403c !important; color: #f5f5f4; }
+                .dark .bg-stone-50 { background-color: #1c1917 !important; border-color: #44403c !important; color: #f5f5f4; }
+                .dark .text-stone-800 { color: #f5f5f4 !important; }
+                .dark .text-stone-700 { color: #e7e5e4 !important; }
+                .dark .text-stone-600 { color: #d6d3d1 !important; }
+                .dark .text-stone-500 { color: #a8a29e !important; }
+                .dark .border-stone-200 { border-color: #44403c !important; }
+                .dark .border-stone-100 { border-color: #292524 !important; }
+                .dark input, .dark textarea, .dark select { background-color: #1c1917 !important; color: #f5f5f4 !important; border-color: #44403c !important; }
+                .dark .bg-amber-50 { background-color: #422006 !important; border-color: #78350f !important; }
+                .dark .bg-blue-50 { background-color: #1e3a8a !important; border-color: #1e40af !important; }
+                .dark .bg-purple-50 { background-color: #3b0764 !important; border-color: #581c87 !important; }
+                .dark .bg-red-50 { background-color: #450a0a !important; border-color: #7f1d1d !important; }
+                .dark .bg-green-50 { background-color: #052e16 !important; border-color: #14532d !important; }
+                .dark .text-amber-900, .dark .text-amber-800 { color: #fcd34d !important; }
+                .dark .text-blue-900, .dark .text-blue-800 { color: #93c5fd !important; }
+                .dark .text-purple-900, .dark .text-purple-800 { color: #d8b4fe !important; }
+            `}</style>
             
             <div className="w-full flex flex-col z-30 flex-shrink-0">
                 <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between shadow-md">
@@ -1502,6 +1591,33 @@ function BoekenApp() {
                                     <button onClick={() => setIsShelfModalOpen(true)} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-3 rounded-xl font-bold shadow-lg w-full sm:w-auto justify-center"><Plus size={20} /> Nieuw Schap</button>
                                 </div>
                                 
+                                {}
+                                <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-amber-100 p-3 rounded-2xl text-amber-600"><BellRing size={24}/></div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-stone-800">Systeem Notificaties</h3>
+                                            <p className="text-sm text-stone-500">Ontvang push-notificaties (Voor iOS: vereist 'Zet op beginscherm').</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={enableNotifications} disabled={notificationsAllowed} className={`w-full sm:w-auto px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all min-w-[200px] ${notificationsAllowed ? 'bg-green-100 text-green-700 border border-green-200 cursor-not-allowed' : 'bg-stone-900 text-white hover:bg-stone-800 shadow-md'}`}>
+                                        {notificationsAllowed ? <><CheckCircle2 size={18}/> Ingeschakeld</> : 'Aanzetten'}
+                                    </button>
+                                </div>
+
+                                <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-stone-100 p-3 rounded-2xl text-stone-600">{darkMode ? <Moon size={24}/> : <Sun size={24}/>}</div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-stone-800">Dark Mode Thema</h3>
+                                            <p className="text-sm text-stone-500">Schakel om naar een donker kleurenschema voor in de avond.</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setDarkMode(!darkMode)} className={`w-full sm:w-auto px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all min-w-[200px] ${darkMode ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-stone-900 text-white hover:bg-stone-800 shadow-md'}`}>
+                                        {darkMode ? <><Moon size={18}/> Donker Thema</> : <><Sun size={18}/> Licht Thema</>}
+                                    </button>
+                                </div>
+
                                 <div className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200/60 mb-6">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="bg-blue-100 p-3 rounded-2xl text-blue-600"><Users size={24}/></div>
@@ -2531,6 +2647,39 @@ function BoekenApp() {
             {/* Confirm Dialog Modal */}
             {confirmDialog.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/60 flex items-center justify-center p-4 z-[130] backdrop-blur-sm"><div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center mx-4"><div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-red-500" size={32}/></div><h3 className="text-xl font-bold text-stone-800 mb-2">Weet je het zeker?</h3><p className="text-stone-500 font-medium mb-6">{confirmDialog.text}</p><div className="flex gap-3"><button onClick={() => setConfirmDialog({ isOpen: false, text: '', action: null })} className="flex-1 px-4 py-3 bg-stone-100 font-bold rounded-xl">Annuleren</button><button onClick={executeConfirm} className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl">Bevestigen</button></div></div></div>
+            )}
+
+            {/* Mooie Quote Generator Modal */}
+            {quoteCard && (
+                <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[200] backdrop-blur-md" onClick={() => setQuoteCard(null)}>
+                    <div className="bg-stone-900 rounded-3xl overflow-hidden max-w-md w-full relative shadow-2xl border border-stone-800" onClick={e => e.stopPropagation()}>
+                        <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-xl scale-110" style={{backgroundImage: `url(${quoteCard.cover || 'https://placehold.co/400x600/1c1917/a8a29e?text=Boek'})`}}></div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
+                        
+                        <div className="relative p-8 md:p-10 flex flex-col items-center text-center mt-6">
+                            <Quote size={48} className="text-amber-400 mb-6 opacity-80 drop-shadow-md"/>
+                            <p className="text-xl sm:text-2xl font-serif italic font-medium text-white mb-10 leading-relaxed drop-shadow-lg">"{quoteCard.text}"</p>
+                            
+                            <div className="flex items-center gap-4 bg-black/50 p-4 rounded-2xl backdrop-blur-md border border-white/10 w-full">
+                                {quoteCard.cover ? <img src={quoteCard.cover} className="w-12 h-16 object-cover rounded shadow-lg border border-white/10" /> : <div className="w-12 h-16 bg-stone-800 rounded flex items-center justify-center border border-white/10"><Book className="text-stone-500"/></div>}
+                                <div className="text-left flex-1 min-w-0">
+                                    <p className="font-bold text-white text-sm truncate">{quoteCard.title}</p>
+                                    <p className="text-stone-400 text-xs truncate">{quoteCard.author}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="relative flex bg-stone-900/80 border-t border-white/10 backdrop-blur-md">
+                            <button onClick={() => setQuoteCard(null)} className="flex-1 py-4 text-stone-400 font-bold hover:text-white hover:bg-white/5 transition-colors">Sluiten</button>
+                            <button className="flex-1 py-4 bg-amber-500 text-white font-bold flex items-center justify-center gap-2 hover:bg-amber-600 transition-colors" onClick={() => {
+                                if (navigator.share) {
+                                    navigator.share({ title: 'Quote uit ' + quoteCard.title, text: `"${quoteCard.text}" - ${quoteCard.author}` }).catch(console.error);
+                                } else {
+                                    showToast("Maak een screenshot van deze kaart om hem te delen!", "info");
+                                }
+                            }}><Share2 size={18}/> Delen</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Toasts / Notificaties UI */}
