@@ -68,12 +68,11 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "25.2.0", date: "Oktober 2026", changes: ["De 'Wissel Account' (impersonate) weergave verplaatst naar je eigen profiel in de zijbalk, speciaal voor admins.", "De knop voor 'Systeem Admin' beheer (om rechten uit te delen) succesvol teruggezet in het menu."] },
     { version: "25.1.0", date: "Oktober 2026", changes: ["Admin balk geoptimaliseerd voor mobiel: knoppen staan nu perfect op één lijn.", "Het bewerken en aanmaken van schappen volledig hersteld inclusief kleuren, beschrijving en tags."] },
     { version: "25.0.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
     { version: "24.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] },
-    { version: "23.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu volledige Schappen (inclusief alle boeken) én Bibliotheken met één klik pushen naar andere gebruikers!"] },
-    { version: "22.0.0", date: "Oktober 2026", changes: ["'Bibliotheken' toegevoegd! Maak uitleenlocaties aan met eigen kleuren.", "Het 'Geleend' label toont nu de naam van de specifieke bibliotheek (in hun kleur) of vriend(in)."] },
-    { version: "21.0.0", date: "Oktober 2026", changes: ["'Samenvoegen' functionaliteit toegevoegd voor Admins: bekijk boeken van andere gebruikers naadloos samen met je eigen boeken, met duidelijke labels.", "Topbalk verwijderd en Admin-menu verplaatst naar de zijbalk."] }
+    { version: "23.0.0", date: "Oktober 2026", changes: ["Admins kunnen nu volledige Schappen (inclusief alle boeken) én Bibliotheken met één klik pushen naar andere gebruikers!"] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -1134,33 +1133,7 @@ function BoekenApp() {
         <div className="flex flex-col bg-stone-100 h-screen overflow-hidden relative">
             
             <div className="w-full flex flex-col z-30 flex-shrink-0">
-                {userData && userData.role === 'admin' && (
-                    <div className="bg-stone-900 border-b border-stone-700 text-white px-4 py-2 flex flex-row justify-between items-center z-50 text-xs sm:text-sm">
-                        <div className="hidden sm:flex items-center gap-2 font-bold text-amber-500">
-                            <Shield size={16} /> Systeem Admin Actief
-                        </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-                            <span className="text-stone-400 whitespace-nowrap">Huidige weergave:</span>
-                            <select
-                                value={activeUserId || user.uid}
-                                onChange={(e) => {
-                                    const uid = e.target.value;
-                                    if (uid === user.uid) setImpersonatedUser(null);
-                                    else setImpersonatedUser(allUsers.find(u => u.uid === uid));
-                                }}
-                                className="bg-stone-800 border border-stone-600 text-white flex-1 sm:flex-none rounded-lg px-2 py-1 outline-none font-bold cursor-pointer"
-                            >
-                                <option value={user.uid}>Mijn Eigen Account</option>
-                                <optgroup label="Andere Gebruikers">
-                                    {allUsers.filter(u => u.uid !== user.uid).map(u => (
-                                        <option key={u.uid} value={u.uid}>{u.name} ({u.email})</option>
-                                    ))}
-                                </optgroup>
-                            </select>
-                        </div>
-                    </div>
-                )}
-                
+                {/* De oude Admin-balk is hier verwijderd! */}
                 <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between shadow-md">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-stone-800 rounded-lg transition"><Menu size={28} /></button>
                     <div className="flex items-center font-bold text-xl"><Library size={24} className="text-amber-500 mr-2" />Boeken<span className="text-amber-500">Plank</span></div>
@@ -1195,19 +1168,43 @@ function BoekenApp() {
                             <button className="md:hidden text-stone-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></button>
                         </div>
                         
-                        <div className={`flex items-center gap-3 mb-4 bg-stone-800/50 rounded-2xl border border-stone-700 ${isDesktopCollapsed ? 'p-2 justify-center flex-col' : 'p-3'}`}>
-                            <div className="relative rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 w-10 h-10 text-lg">
-                                {userData.name.charAt(0).toUpperCase()}
-                                {impersonatedUser && <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-stone-800"></div>}
-                            </div>
-                            {!isDesktopCollapsed && (
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-sm truncate text-white">{userData.name}</p>
-                                    <p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p>
+                        <div className={`flex flex-col gap-2 mb-4 bg-stone-800/50 rounded-2xl border ${impersonatedUser ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'border-stone-700'} ${isDesktopCollapsed ? 'p-2 justify-center' : 'p-3'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="relative rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 w-10 h-10 text-lg mx-auto md:mx-0">
+                                    {userData.name.charAt(0).toUpperCase()}
+                                    {impersonatedUser && <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-stone-800"></div>}
                                 </div>
-                            )}
-                            {!isDesktopCollapsed && !impersonatedUser && (
-                                <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors flex-shrink-0"><LogOut size={16}/></button>
+                                {!isDesktopCollapsed && (
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm truncate text-white">{userData.name}</p>
+                                        <p className="text-xs text-stone-400 truncate">{userData.role === 'admin' ? 'Beheerder' : 'Gebruiker'}</p>
+                                    </div>
+                                )}
+                                {!isDesktopCollapsed && (
+                                    <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors flex-shrink-0"><LogOut size={16}/></button>
+                                )}
+                            </div>
+                            
+                            {/* Impersonation dropdown direct in profiel */}
+                            {userData.role === 'admin' && !isDesktopCollapsed && (
+                                <div className="mt-1 pt-2 border-t border-stone-700/50">
+                                    <select
+                                        value={activeUserId || user.uid}
+                                        onChange={(e) => {
+                                            const uid = e.target.value;
+                                            if (uid === user.uid) setImpersonatedUser(null);
+                                            else setImpersonatedUser(allUsers.find(u => u.uid === uid));
+                                        }}
+                                        className="w-full bg-stone-900 border border-stone-600 text-white rounded-lg px-2 py-1.5 outline-none text-xs font-bold cursor-pointer hover:border-amber-500 transition-colors"
+                                    >
+                                        <option value={user.uid}>Mijn Eigen Account</option>
+                                        <optgroup label="Andere Gebruikers">
+                                            {allUsers.filter(u => u.uid !== user.uid).map(u => (
+                                                <option key={u.uid} value={u.uid}>{u.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    </select>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -1253,6 +1250,13 @@ function BoekenApp() {
                                 <History size={20} className="flex-shrink-0"/>
                                 {!isDesktopCollapsed && <span className="whitespace-nowrap">Versiegeschiedenis</span>}
                             </button>
+                            
+                            {userData.role === 'admin' && (
+                                <button onClick={() => switchTab('admin')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'admin' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Systeem Admin" : ""}>
+                                    <Shield size={20} className="flex-shrink-0"/>
+                                    {!isDesktopCollapsed && <span className="whitespace-nowrap">Systeem Admin</span>}
+                                </button>
+                            )}
                         </div>
                         <div className="mt-6 pt-4 border-t border-stone-800 text-center">
                             {!isDesktopCollapsed && <p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p>}
