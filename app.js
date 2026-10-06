@@ -7,14 +7,14 @@ import {
     Menu, History, Calendar, ChevronLeft, ChevronRight, CalendarDays, UserX, Save,
     ArrowUp, ArrowDown, Star, BookmarkPlus, GripVertical, Move, Loader2,
     Quote, FileText, Send, UserCheck, UserMinus, Clock, ChevronDown, ChevronUp, Tag,
-    Headphones, Tablet, Play, Square, Upload, FileUp, Filter, Copy, SendToBack, Bell, BellRing, Sun, Moon
+    Headphones, Tablet, Play, Square, Upload, FileUp, Filter, Copy, SendToBack, Bell, BellRing, Sun, Moon, Activity
 } from 'https://esm.sh/lucide-react@0.292.0';
 
 import Papa from 'https://esm.sh/papaparse@5.4.1';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDocs, arrayUnion, arrayRemove, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const firebaseConfig = {
     apiKey: "AIzaSyCVlFFp4QiianYl27RSGKjkA0HDzUyu1Q4",
@@ -67,10 +67,10 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "10.0.0", date: "Oktober 2026", changes: ["Volledig Admin Systeem Logboek ingebouwd! (Krijg meldingen wanneer gebruikers iets doen).", "Extra veiligheid en stabiliteit."] },
     { version: "9.1.0", date: "Oktober 2026", changes: ["Systeem Admin knop verplaatst naar het profielmenu.", "Versiegeschiedenis menu netjes weggewerkt als klikbaar versienummer onder copyright.", "Magische kaft scanner verwijderd wegens instabiliteit.", "Dagelijkse lees-herinneringen toegevoegd in de avond.", "Automatische uitleen waarschuwingen (30+ dagen) toegevoegd.", "Bibliotheek uitleendatums en binnenbreng-datums toegevoegd."] },
     { version: "9.0.0", date: "Oktober 2026", changes: ["De 'Wissel Account' (impersonate) weergave verplaatst naar je eigen profiel in de zijbalk, speciaal voor admins."] },
-    { version: "8.5.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
-    { version: "8.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] }
+    { version: "8.5.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -182,6 +182,10 @@ function BoekenApp() {
     const [notificationsAllowed, setNotificationsAllowed] = useState(window.Notification && Notification.permission === 'granted');
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
 
+    // Admin Logging State
+    const [activityLogs, setActivityLogs] = useState([]);
+    const initialLoadRef = useRef(true);
+
     useEffect(() => {
         if (darkMode) {
             document.documentElement.classList.add('dark');
@@ -194,7 +198,6 @@ function BoekenApp() {
 
     useEffect(() => {
         if ('serviceWorker' in navigator) {
-            // Forceer verwijdering van oude kapotte "blob" service workers uit het cachegeheugen
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
                 for(let registration of registrations) {
                     if(registration.active && registration.active.scriptURL.includes('blob:')) {
@@ -202,8 +205,6 @@ function BoekenApp() {
                     }
                 }
             });
-            // We gebruiken geen 'blob' meer want dat blokkeert GitHub Pages en veroorzaakt crashes.
-            // LET OP: Maak simpelweg een leeg bestand aan genaamd 'sw.js' op je GitHub!
             navigator.serviceWorker.register('./sw.js').catch(err => {
                 console.warn('Geen sw.js bestand gevonden. iOS push notificaties werken mogelijk beperkt.', err);
             });
@@ -226,8 +227,6 @@ function BoekenApp() {
         if (!notificationsAllowed) return;
         
         const lastNotified = localStorage.getItem('lastNotificationSent');
-        
-        // Zorg dat we maximaal 1 notificatie per dag sturen
         if (lastNotified !== todayStr) {
             let notificationText = '';
             if (overdueLibrary.length > 0) notificationText += `Je hebt ${overdueLibrary.length} bibliotheekboeken die te laat zijn! `;
@@ -242,6 +241,38 @@ function BoekenApp() {
             }
         }
     }, [books, needsDailyReminder, notificationsAllowed, overdueLibrary.length, todayStr]);
+
+    // Ophalen (en tonen) van het Systeem Logboek (Live)
+    useEffect(() => {
+        if (userData && userData.role === 'admin') {
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'activityLogs'), orderBy('timestamp', 'desc'), limit(100));
+            const unsubLogs = onSnapshot(q, (snap) => {
+                const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setActivityLogs(logs);
+
+                if (!initialLoadRef.current) {
+                    snap.docChanges().forEach((change) => {
+                        if (change.type === 'added') {
+                            const newLog = change.doc.data();
+                            if (user && newLog.uid !== user.uid) { 
+                                const actionText = formatLogAction(newLog);
+                                showToast(`${newLog.userName} ${actionText}`, 'info');
+                                if (notificationsAllowed) {
+                                    new Notification("Activiteit in BoekenPlank", {
+                                        body: `${newLog.userName} ${actionText}`,
+                                        icon: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png"
+                                    });
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    setTimeout(() => { initialLoadRef.current = false; }, 1000);
+                }
+            }, console.error);
+            return () => { unsubLogs(); initialLoadRef.current = true; };
+        }
+    }, [userData, user, notificationsAllowed]);
 
     const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
     const [calendarLogData, setCalendarLogData] = useState({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
@@ -353,6 +384,34 @@ function BoekenApp() {
         }
     }, [adminPushData.targetUid, adminPushData.type]);
 
+    // HULPFUNCTIE: Log Activiteit
+    const logActivity = async (action, details) => {
+        if (!user || !userData) return;
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'activityLogs'), {
+                uid: user.uid,
+                userName: userData.name,
+                action,
+                details,
+                timestamp: new Date().toISOString()
+            });
+        } catch(e) { console.error("Kon log niet opslaan", e); }
+    };
+
+    const formatLogAction = (log) => {
+        if(!log || !log.action) return 'voerde een actie uit.';
+        switch(log.action) {
+            case 'add_book': return `voegde het boek "${log.details.title}" toe.`;
+            case 'read_pages': return `update de leesvoortgang van "${log.details.title}".`;
+            case 'add_shelf': return `maakte het schap "${log.details.name}" aan.`;
+            case 'add_review': return `schreef een review voor "${log.details.title}".`;
+            case 'lend_book': return `heeft "${log.details.title}" uitgeleend aan ${log.details.to}.`;
+            case 'add_note': return `voegde een notitie/quote toe aan "${log.details.title}".`;
+            case 'import_csv': return `heeft zojuist ${log.details.count} boeken geïmporteerd.`;
+            default: return `voerde een actie uit.`;
+        }
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault(); setLoading(true);
         try { const provider = new GoogleAuthProvider(); await signInWithPopup(auth, provider); } 
@@ -432,6 +491,7 @@ function BoekenApp() {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'books'), newBookData);
             setCopyBookData({ isOpen: false, book: null, targetShelfId: '' });
             showToast(`"${newBookData.title}" is gekopieerd naar je bibliotheek!`);
+            logActivity('add_book', { title: newBookData.title });
         } catch (err) {
             showToast("Er ging iets mis met kopiëren.", "error");
         }
@@ -598,6 +658,7 @@ function BoekenApp() {
     const handleAddShelf = async (e) => {
         e.preventDefault(); if (!activeUserId || !newShelf.name) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'shelves'), { ...newShelf, color: newShelf.color || 'bg-amber-500', tags: newShelf.tags || '', order: myShelves.length, createdAt: new Date().toISOString() });
+        logActivity('add_shelf', { name: newShelf.name });
         setNewShelf({ name: '', description: '', color: 'bg-amber-500', tags: '' }); setIsShelfModalOpen(false);
         showToast("Nieuw schap toegevoegd!");
     };
@@ -664,6 +725,8 @@ function BoekenApp() {
             lentDate: null,
             addedAt: new Date().toISOString() 
         });
+        
+        logActivity('add_book', { title: newBook.title });
         setNewBook(initialBookState); setIsBookModalOpen(false); setTitleSuggestions([]);
         showToast("Boek toegevoegd aan bibliotheek!");
     };
@@ -704,6 +767,7 @@ function BoekenApp() {
             await setDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'readingLog', `${todayStr}_${selectedBook.id}`), { date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null }, { merge: true });
         }
         
+        logActivity('read_pages', { title: selectedBook.title, pagesRead: newPages });
         setSelectedBook(p => ({...p, pagesRead: newPages}));
         showToast("Leesvoortgang opgeslagen!");
     };
@@ -712,6 +776,7 @@ function BoekenApp() {
         if (!activeUserId || !selectedBook) return;
         const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { rating: selectedBook.rating || 0, review: selectedBook.review || '' });
+        logActivity('add_review', { title: selectedBook.title });
         showToast("Jouw beoordeling is opgeslagen!");
     };
 
@@ -722,6 +787,8 @@ function BoekenApp() {
         const updatedNotes = [...(selectedBook.notes || []), { ...newNote, date: new Date().toISOString(), id: Date.now().toString() }];
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
         setSelectedBook({...selectedBook, notes: updatedNotes});
+        
+        logActivity('add_note', { title: selectedBook.title });
         setNewNote({ text: '', type: 'quote' });
         showToast("Notitie succesvol toegevoegd!");
     };
@@ -743,6 +810,8 @@ function BoekenApp() {
         const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: lendData.name, lentDate: lendData.date });
         setSelectedBook({...selectedBook, lentTo: lendData.name, lentDate: lendData.date});
+        
+        logActivity('lend_book', { title: selectedBook.title, to: lendData.name });
         setLendData({ name: '', date: getTodayString() });
         showToast(`Boek uitgeleend aan ${lendData.name}!`);
     };
@@ -862,6 +931,7 @@ function BoekenApp() {
 
         await setDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'readingLog', `${calendarLogData.dateStr}_${book.id}`), { date: calendarLogData.dateStr, bookId: book.id, title: book.title, cover: book.cover || null }, { merge: true });
         
+        logActivity('read_pages', { title: book.title });
         setCalendarLogData({ isOpen: false, dateStr: '', bookId: '', pagesRead: '' });
         showToast("Leessessie en voortgang opgeslagen in je kalender!");
     };
@@ -949,6 +1019,7 @@ function BoekenApp() {
                     setImportStats({ total: rows.length, current: i + 1 });
                 }
                 
+                logActivity('import_csv', { count: rows.length });
                 setIsImporting(false);
                 showToast(`Import succesvol! Er zijn ${rows.length} boeken toegevoegd.`);
                 switchTab('schappen');
@@ -1876,6 +1947,34 @@ function BoekenApp() {
                                         ))}
                                     </div>
                                 </div>
+                                
+                                {/* NIEUW: HET SYSTEEM LOGBOEK */}
+                                <div className="bg-white rounded-3xl shadow-md overflow-hidden p-5 sm:p-6 border border-stone-200">
+                                    <h3 className="text-2xl font-black mb-4 flex items-center gap-2 text-stone-800"><Activity className="text-amber-500" size={28}/> Systeem Logboek (Live)</h3>
+                                    <p className="text-sm text-stone-500 mb-6">Een overzicht van alle acties uitgevoerd door gebruikers in de app.</p>
+                                    
+                                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 hide-scrollbar">
+                                        {activityLogs.length === 0 ? (
+                                            <p className="text-stone-500 font-medium">Nog geen recente activiteit geregistreerd.</p>
+                                        ) : (
+                                            activityLogs.map(log => (
+                                                <div key={log.id} className="flex gap-4 items-start p-3 bg-stone-50 rounded-xl border border-stone-200 hover:border-amber-300 transition-colors">
+                                                    <div className="bg-amber-100 text-amber-600 p-2.5 rounded-xl flex-shrink-0">
+                                                        <Activity size={18}/>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm text-stone-700 leading-tight">
+                                                            <span className="font-bold text-stone-900">{log.userName}</span> {formatLogAction(log)}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-stone-400 mt-1 uppercase tracking-wider">
+                                                            {new Date(log.timestamp).toLocaleDateString('nl-NL')} om {new Date(log.timestamp).toLocaleTimeString('nl-NL', {hour: '2-digit', minute: '2-digit'})}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -2205,6 +2304,7 @@ function BoekenApp() {
                                                         await setDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'readingLog', `${todayStr}_${selectedBook.id}`), {
                                                             date: todayStr, bookId: selectedBook.id, title: selectedBook.title, cover: selectedBook.cover || null
                                                         }, { merge: true });
+                                                        logActivity('read_pages', { title: selectedBook.title, pagesRead: parseInt(endPage) });
                                                     }
                                                     setSelectedBook({...selectedBook, pagesRead: parseInt(endPage)});
                                                     setBookModalTab('overzicht');
@@ -2756,3 +2856,4 @@ function BookList({ books, onSelect, isDragMode, onDragStart, allLibraries }) {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<BoekenApp />);
+```eof
