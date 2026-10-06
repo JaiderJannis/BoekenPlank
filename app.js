@@ -133,7 +133,9 @@ function BoekenApp() {
     const [impersonatedUser, setImpersonatedUser] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     
+    // Essentiële variabele die bugs voorkomt
     const activeUserId = impersonatedUser ? impersonatedUser.uid : (user ? user.uid : null);
 
     const [myBooks, setMyBooks] = useState([]);
@@ -1192,10 +1194,14 @@ function BoekenApp() {
                         </div>
                         
                         <div className={`flex flex-col gap-2 mb-4 bg-stone-800/50 rounded-2xl border ${impersonatedUser ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'border-stone-700'} ${isDesktopCollapsed ? 'p-2 justify-center' : 'p-3'}`}>
-                            <div className="flex items-center gap-3">
-                                <div className="relative rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 w-10 h-10 text-lg mx-auto md:mx-0">
-                                    {userData.name.charAt(0).toUpperCase()}
-                                    {impersonatedUser && <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-stone-800"></div>}
+                            <div className="flex items-center gap-3 cursor-pointer hover:bg-stone-800 p-1 -m-1 rounded-xl transition-colors" onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}>
+                                <div className="relative rounded-full bg-gradient-to-tr from-stone-600 to-stone-500 flex items-center justify-center font-bold border-2 border-stone-700 flex-shrink-0 w-10 h-10 text-lg mx-auto md:mx-0 overflow-hidden">
+                                    {user?.photoURL ? (
+                                        <img src={user.photoURL} alt="Profiel" className="w-full h-full object-cover" />
+                                    ) : (
+                                        userData.name.charAt(0).toUpperCase()
+                                    )}
+                                    {impersonatedUser && <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full border-2 border-stone-800 z-10"></div>}
                                 </div>
                                 {!isDesktopCollapsed && (
                                     <div className="flex-1 min-w-0">
@@ -1204,28 +1210,39 @@ function BoekenApp() {
                                     </div>
                                 )}
                                 {!isDesktopCollapsed && (
-                                    <button onClick={handleLogout} className="p-2 text-stone-400 hover:text-white bg-stone-800 rounded-xl transition-colors flex-shrink-0"><LogOut size={16}/></button>
+                                    <ChevronDown size={16} className={`text-stone-400 transition-transform flex-shrink-0 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                                 )}
                             </div>
                             
-                            {userData.role === 'admin' && !isDesktopCollapsed && (
-                                <div className="mt-1 pt-2 border-t border-stone-700/50">
-                                    <select
-                                        value={activeUserId || user.uid}
-                                        onChange={(e) => {
-                                            const uid = e.target.value;
-                                            if (uid === user.uid) setImpersonatedUser(null);
-                                            else setImpersonatedUser(allUsers.find(u => u.uid === uid));
-                                        }}
-                                        className="w-full bg-stone-900 border border-stone-600 text-white rounded-lg px-2 py-1.5 outline-none text-xs font-bold cursor-pointer hover:border-amber-500 transition-colors"
-                                    >
-                                        <option value={user.uid}>Mijn Eigen Account</option>
-                                        <optgroup label="Andere Gebruikers">
-                                            {allUsers.filter(u => u.uid !== user.uid).map(u => (
-                                                <option key={u.uid} value={u.uid}>{u.name}</option>
-                                            ))}
-                                        </optgroup>
-                                    </select>
+                            {isProfileMenuOpen && !isDesktopCollapsed && (
+                                <div className="mt-2 pt-2 border-t border-stone-700/50 flex flex-col gap-1 animate-fade-in">
+                                    {userData.role === 'admin' && (
+                                        <div className="mb-2">
+                                            <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1 block pl-2">Systeem Admin</label>
+                                            <select
+                                                value={activeUserId || user.uid}
+                                                onChange={(e) => {
+                                                    const uid = e.target.value;
+                                                    if (uid === user.uid) setImpersonatedUser(null);
+                                                    else setImpersonatedUser(allUsers.find(u => u.uid === uid));
+                                                }}
+                                                className="w-full bg-stone-900 border border-stone-600 text-white rounded-lg px-2 py-1.5 outline-none text-xs font-bold cursor-pointer hover:border-amber-500 transition-colors"
+                                            >
+                                                <option value={user.uid}>Mijn Eigen Account</option>
+                                                <optgroup label="Andere Gebruikers">
+                                                    {allUsers.filter(u => u.uid !== user.uid).map(u => (
+                                                        <option key={u.uid} value={u.uid}>{u.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                    )}
+                                    <button onClick={() => { switchTab('beheer'); setIsProfileMenuOpen(false); }} className="flex items-center gap-3 w-full text-left text-sm text-stone-300 hover:text-white hover:bg-stone-700 p-2 rounded-lg transition-colors">
+                                        <Settings size={16}/> Beheer & Instellingen
+                                    </button>
+                                    <button onClick={handleLogout} className="flex items-center gap-3 w-full text-left text-sm text-red-400 hover:text-red-300 hover:bg-stone-700/50 p-2 rounded-lg transition-colors">
+                                        <LogOut size={16}/> Uitloggen
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -1264,10 +1281,6 @@ function BoekenApp() {
                             </button>
 
                             {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p> : <div className="h-4"></div>}
-                            <button onClick={() => switchTab('beheer')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'beheer' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Schappen Beheren" : ""}>
-                                <Settings size={20} className="flex-shrink-0"/>
-                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Beheer & Instellingen</span>}
-                            </button>
                             <button onClick={() => switchTab('changelog')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Versiegeschiedenis" : ""}>
                                 <History size={20} className="flex-shrink-0"/>
                                 {!isDesktopCollapsed && <span className="whitespace-nowrap">Versiegeschiedenis</span>}
@@ -1297,17 +1310,6 @@ function BoekenApp() {
                                     <h4 className="text-red-800 font-bold mb-1">Let op: Boeken zijn te laat!</h4>
                                     {overdueFriends.length > 0 && <p className="text-red-600 text-sm">Je hebt {overdueFriends.length} boek(en) al langer dan 30 dagen uitgeleend aan vrienden.</p>}
                                     {overdueLibrary.length > 0 && <p className="text-red-600 text-sm">Je hebt {overdueLibrary.length} bibliotheekboek(en) die al binnengebracht moesten zijn!</p>}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* DAGELIJKSE HERINNERING BANNER */}
-                        {needsDailyReminder && (activeTab === 'schappen' || activeTab === 'alle') && (
-                            <div className="bg-orange-50 border border-orange-200 rounded-3xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm animate-fade-in">
-                                <div className="bg-orange-100 p-3 rounded-full text-orange-600 flex-shrink-0"><Bell size={24} className="animate-pulse"/></div>
-                                <div className="flex-1">
-                                    <h4 className="text-orange-800 font-bold mb-1">Tijd om te lezen! 📖</h4>
-                                    <p className="text-orange-600 text-sm">Je hebt vandaag je leessessie nog niet geregistreerd. Lees even wat pagina's om je streak te behouden.</p>
                                 </div>
                             </div>
                         )}
