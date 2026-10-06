@@ -67,10 +67,9 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
+    { version: "10.1.0", date: "Oktober 2026", changes: ["Logboek trackt nu echt ELKE actie (verwijderen, bewerken, slepen, etc.)."] },
     { version: "10.0.0", date: "Oktober 2026", changes: ["Volledig Admin Systeem Logboek ingebouwd! (Krijg meldingen wanneer gebruikers iets doen).", "Extra veiligheid en stabiliteit."] },
-    { version: "9.1.0", date: "Oktober 2026", changes: ["Systeem Admin knop verplaatst naar het profielmenu.", "Versiegeschiedenis menu netjes weggewerkt als klikbaar versienummer onder copyright.", "Magische kaft scanner verwijderd wegens instabiliteit.", "Dagelijkse lees-herinneringen toegevoegd in de avond.", "Automatische uitleen waarschuwingen (30+ dagen) toegevoegd.", "Bibliotheek uitleendatums en binnenbreng-datums toegevoegd."] },
-    { version: "9.0.0", date: "Oktober 2026", changes: ["De 'Wissel Account' (impersonate) weergave verplaatst naar je eigen profiel in de zijbalk, speciaal voor admins."] },
-    { version: "8.5.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] }
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Systeem Admin knop verplaatst naar het profielmenu.", "Versiegeschiedenis menu netjes weggewerkt als klikbaar versienummer onder copyright."] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -402,12 +401,26 @@ function BoekenApp() {
         if(!log || !log.action) return 'voerde een actie uit.';
         switch(log.action) {
             case 'add_book': return `voegde het boek "${log.details.title}" toe.`;
+            case 'edit_book': return `heeft de gegevens van "${log.details.title}" gewijzigd.`;
+            case 'delete_book': return `heeft het boek "${log.details.title}" verwijderd.`;
             case 'read_pages': return `update de leesvoortgang van "${log.details.title}".`;
             case 'add_shelf': return `maakte het schap "${log.details.name}" aan.`;
+            case 'edit_shelf': return `heeft het schap "${log.details.name}" gewijzigd.`;
+            case 'delete_shelf': return `heeft het schap "${log.details.name}" verwijderd.`;
+            case 'add_library': return `voegde bibliotheek "${log.details.name}" toe.`;
+            case 'edit_library': return `heeft bibliotheek "${log.details.name}" gewijzigd.`;
+            case 'delete_library': return `heeft bibliotheek "${log.details.name}" verwijderd.`;
             case 'add_review': return `schreef een review voor "${log.details.title}".`;
             case 'lend_book': return `heeft "${log.details.title}" uitgeleend aan ${log.details.to}.`;
+            case 'return_book': return `heeft "${log.details.title}" teruggekregen.`;
             case 'add_note': return `voegde een notitie/quote toe aan "${log.details.title}".`;
+            case 'delete_note': return `verwijderde een notitie bij "${log.details.title}".`;
+            case 'move_book': return `verplaatste "${log.details.title}" naar een ander schap.`;
+            case 'share_shelf': return `deelde schap "${log.details.name}" met ${log.details.to}.`;
+            case 'push_item': return `pushte een ${log.details.type} ("${log.details.name}") naar een gebruiker.`;
             case 'import_csv': return `heeft zojuist ${log.details.count} boeken geïmporteerd.`;
+            case 'undo_read': return `heeft een leessessie geannuleerd.`;
+            case 'delete_log': return `verwijderde een leessessie uit de kalender.`;
             default: return `voerde een actie uit.`;
         }
     };
@@ -529,6 +542,7 @@ function BoekenApp() {
                     addedAt: new Date().toISOString()
                 };
                 await addDoc(collection(db, 'artifacts', appId, 'users', adminPushData.targetUid, 'books'), newBookData);
+                logActivity('push_item', { type: 'boek', name: newBookData.title, to: adminPushData.targetUid });
                 showToast(`Boek succesvol naar de gebruiker gepusht!`);
             } 
             else if (adminPushData.type === 'shelf') {
@@ -576,6 +590,7 @@ function BoekenApp() {
                 } else {
                     showToast(`Leeg schap succesvol gepusht!`);
                 }
+                logActivity('push_item', { type: 'schap', name: shelfToCopy.name, to: adminPushData.targetUid });
             }
             else if (adminPushData.type === 'library') {
                 const libToCopy = adminPushData.item;
@@ -584,6 +599,7 @@ function BoekenApp() {
                     color: libToCopy.color || 'bg-blue-500',
                     createdAt: new Date().toISOString()
                 });
+                logActivity('push_item', { type: 'bibliotheek', name: libToCopy.name, to: adminPushData.targetUid });
                 showToast(`Bibliotheek locatie succesvol gepusht!`);
             }
 
@@ -667,6 +683,7 @@ function BoekenApp() {
         e.preventDefault(); if(!activeUserId || !editShelfData.id) return;
         const ownerUid = editShelfData._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'shelves', editShelfData.id), { name: editShelfData.name, description: editShelfData.description, color: editShelfData.color, tags: editShelfData.tags || '' });
+        logActivity('edit_shelf', { name: editShelfData.name });
         setEditShelfData({ isOpen: false, id: '', name: '', description: '', color: 'bg-amber-500', tags: '', _ownerUid: '' });
         showToast("Schap succesvol bewerkt!");
     };
@@ -674,6 +691,7 @@ function BoekenApp() {
     const handleAddLibrary = async (e) => {
         e.preventDefault(); if (!activeUserId || !newLibrary.name) return;
         await addDoc(collection(db, 'artifacts', appId, 'users', activeUserId, 'libraries'), { ...newLibrary, color: newLibrary.color || 'bg-blue-500', createdAt: new Date().toISOString() });
+        logActivity('add_library', { name: newLibrary.name });
         setNewLibrary({ name: '', color: 'bg-blue-500' }); setIsLibraryModalOpen(false);
         showToast("Bibliotheek toegevoegd!");
     };
@@ -682,6 +700,7 @@ function BoekenApp() {
         e.preventDefault(); if(!activeUserId || !editLibraryData.id) return;
         const ownerUid = editLibraryData._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'libraries', editLibraryData.id), { name: editLibraryData.name, color: editLibraryData.color });
+        logActivity('edit_library', { name: editLibraryData.name });
         setEditLibraryData({ isOpen: false, id: '', name: '', color: 'bg-blue-500', _ownerUid: '' });
         showToast("Bibliotheek succesvol bewerkt!");
     };
@@ -691,6 +710,7 @@ function BoekenApp() {
          const targetUid = ownerUid || activeUserId;
          requestConfirm(`Bibliotheek "${name}" definitief verwijderen?`, async () => { 
              await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'libraries', id)); 
+             logActivity('delete_library', { name: name });
              showToast("Bibliotheek verwijderd.", "info");
          });
     };
@@ -750,6 +770,7 @@ function BoekenApp() {
             borrowedStartDate: editBookData.borrowedStartDate || '',
             borrowedDueDate: editBookData.borrowedDueDate || ''
         });
+        logActivity('edit_book', { title: editBookData.title });
         setSelectedBook(p => ({...p, ...editBookData})); setIsEditingBook(false);
         showToast("Boekgegevens succesvol bijgewerkt!");
     };
@@ -799,6 +820,7 @@ function BoekenApp() {
         requestConfirm("Weet je zeker dat je deze notitie wilt verwijderen?", async () => {
             const updatedNotes = (selectedBook.notes || []).filter(n => n.id !== noteId);
             await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { notes: updatedNotes });
+            logActivity('delete_note', { title: selectedBook.title });
             setSelectedBook({...selectedBook, notes: updatedNotes});
             showToast("Notitie verwijderd.", "info");
         });
@@ -820,6 +842,7 @@ function BoekenApp() {
         if (!activeUserId || !selectedBook) return;
         const ownerUid = selectedBook._ownerUid || activeUserId;
         await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id), { lentTo: null, lentDate: null });
+        logActivity('return_book', { title: selectedBook.title });
         setSelectedBook({...selectedBook, lentTo: null, lentDate: null});
         showToast("Boek is weer terug!");
     };
@@ -828,7 +851,9 @@ function BoekenApp() {
         if (!activeUserId || !selectedBook) return;
         const ownerUid = selectedBook._ownerUid || activeUserId;
         requestConfirm(`Weet je zeker dat je "${selectedBook.title}" wilt verwijderen?`, async () => {
-            await deleteDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id)); setSelectedBook(null);
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', selectedBook.id)); 
+            logActivity('delete_book', { title: selectedBook.title });
+            setSelectedBook(null);
             showToast("Boek definitief verwijderd.", "info");
         });
     };
@@ -840,6 +865,7 @@ function BoekenApp() {
          if(shelfBooks.length > 0) { requestConfirm(`Let op: Er zitten nog ${shelfBooks.length} boeken in "${shelfName}". Verwijder of verplaats deze eerst!`, () => {}); return; }
          requestConfirm(`Schap "${shelfName}" definitief verwijderen?`, async () => { 
              await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'shelves', shelfId)); 
+             logActivity('delete_shelf', { name: shelfName });
              showToast("Schap definitief verwijderd.", "info");
          });
     };
@@ -872,6 +898,7 @@ function BoekenApp() {
             if(!book) return;
             const ownerUid = book._ownerUid || activeUserId;
             await updateDoc(doc(db, 'artifacts', appId, 'users', ownerUid, 'books', bookId), { shelfId });
+            logActivity('move_book', { title: book.title });
             setIsDragMode(false); 
             showToast("Boek succesvol verplaatst!");
         }
@@ -894,6 +921,8 @@ function BoekenApp() {
             for (const b of booksToCopy) { await addDoc(collection(db, 'artifacts', appId, 'users', targetUid, 'books'), { ...b, shelfId: newShelfRef.id, addedAt: new Date().toISOString() }); }
             const currentShared = shelfToCopy.sharedWith || [];
             await updateDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'shelves', shareShelfData.shelfId), { sharedWith: [...currentShared, { uid: targetUid, email: shareShelfData.email, targetShelfId: newShelfRef.id }] });
+            
+            logActivity('share_shelf', { name: shelfToCopy.name, to: shareShelfData.email });
             setShareShelfData({ isOpen: false, shelfId: '', shelfName: '', email: '', loading: false, msg: '' });
             showToast(`Schap succesvol gedeeld met ${shareShelfData.email}!`);
         } catch (err) { setShareShelfData(p => ({...p, loading: false, msg: 'Fout bij het delen.'})); }
@@ -916,7 +945,9 @@ function BoekenApp() {
     const toggleAdminRole = async (targetUid, currentRole) => {
         if(!userData || userData.role !== 'admin') return;
         const newRole = currentRole === 'admin' ? 'user' : 'admin';
-        requestConfirm(`Wil je de rol wijzigen naar ${newRole}?`, async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUid), { role: newRole }); });
+        requestConfirm(`Wil je de rol wijzigen naar ${newRole}?`, async () => { 
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUid), { role: newRole }); 
+        });
     };
 
     const handleRetroactiveLog = async (e) => {
@@ -941,6 +972,7 @@ function BoekenApp() {
         const targetUid = ownerUid || activeUserId;
         requestConfirm("Weet je zeker dat je dit boek van deze dag wilt verwijderen?", async () => {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', targetUid, 'readingLog', logId));
+            logActivity('delete_log', {});
             showToast("Log succesvol verwijderd uit de kalender.", "info");
         });
     };
@@ -953,6 +985,7 @@ function BoekenApp() {
             for (const log of logsToDelete) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', activeUserId, 'readingLog', log.id));
             }
+            logActivity('undo_read', {});
             showToast("Lees-streak geannuleerd.", "info");
         });
     };
@@ -1948,7 +1981,7 @@ function BoekenApp() {
                                     </div>
                                 </div>
                                 
-                                {/* NIEUW: HET SYSTEEM LOGBOEK */}
+                                {/* HET SYSTEEM LOGBOEK */}
                                 <div className="bg-white rounded-3xl shadow-md overflow-hidden p-5 sm:p-6 border border-stone-200">
                                     <h3 className="text-2xl font-black mb-4 flex items-center gap-2 text-stone-800"><Activity className="text-amber-500" size={28}/> Systeem Logboek (Live)</h3>
                                     <p className="text-sm text-stone-500 mb-6">Een overzicht van alle acties uitgevoerd door gebruikers in de app.</p>
