@@ -67,10 +67,10 @@ const SHELF_COLORS = [
 ];
 
 const CHANGELOG = [
-    { version: "26.0.0", date: "Oktober 2026", changes: ["Magische kaft scanner verwijderd wegens instabiliteit.", "Dagelijkse lees-herinneringen toegevoegd in de avond.", "Automatische uitleen waarschuwingen (30+ dagen) toegevoegd.", "Bibliotheek uitleendatums en binnenbreng-datums toegevoegd."] },
-    { version: "25.2.0", date: "Oktober 2026", changes: ["De 'Wissel Account' (impersonate) weergave verplaatst naar je eigen profiel in de zijbalk, speciaal voor admins.", "De knop voor 'Systeem Admin' beheer (om rechten uit te delen) succesvol teruggezet in het menu."] },
-    { version: "25.0.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
-    { version: "24.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] }
+    { version: "9.1.0", date: "Oktober 2026", changes: ["Systeem Admin knop verplaatst naar het profielmenu.", "Versiegeschiedenis menu netjes weggewerkt als klikbaar versienummer onder copyright.", "Magische kaft scanner verwijderd wegens instabiliteit.", "Dagelijkse lees-herinneringen toegevoegd in de avond.", "Automatische uitleen waarschuwingen (30+ dagen) toegevoegd.", "Bibliotheek uitleendatums en binnenbreng-datums toegevoegd."] },
+    { version: "9.0.0", date: "Oktober 2026", changes: ["De 'Wissel Account' (impersonate) weergave verplaatst naar je eigen profiel in de zijbalk, speciaal voor admins."] },
+    { version: "8.5.0", date: "Oktober 2026", changes: ["Alle bewerk- en deelfuncties voor schappen en bibliotheken volledig hersteld!", "Database error-preventie ingebouwd."] },
+    { version: "8.0.0", date: "Oktober 2026", changes: ["Optie toegevoegd voor Admins om bij het pushen van schappen te kiezen of ze de boeken óók mee willen pushen, of enkel een leeg schap willen overzetten."] }
 ];
 
 function ReadingTimer({ book, onSave }) {
@@ -1237,6 +1237,11 @@ function BoekenApp() {
                                             </select>
                                         </div>
                                     )}
+                                    {userData.role === 'admin' && (
+                                        <button onClick={() => { switchTab('admin'); setIsProfileMenuOpen(false); }} className="flex items-center gap-3 w-full text-left text-sm text-stone-300 hover:text-white hover:bg-stone-700 p-2 rounded-lg transition-colors">
+                                            <Shield size={16}/> Systeem Admin
+                                        </button>
+                                    )}
                                     <button onClick={() => { switchTab('beheer'); setIsProfileMenuOpen(false); }} className="flex items-center gap-3 w-full text-left text-sm text-stone-300 hover:text-white hover:bg-stone-700 p-2 rounded-lg transition-colors">
                                         <Settings size={16}/> Beheer & Instellingen
                                     </button>
@@ -1279,22 +1284,12 @@ function BoekenApp() {
                                 <Users size={20} className="flex-shrink-0"/>
                                 {!isDesktopCollapsed && <span className="whitespace-nowrap">Ontdekken</span>}
                             </button>
-
-                            {!isDesktopCollapsed ? <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 ml-2 mt-4">Beheer</p> : <div className="h-4"></div>}
-                            <button onClick={() => switchTab('changelog')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'changelog' ? 'bg-stone-800 text-white border border-stone-700' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Versiegeschiedenis" : ""}>
-                                <History size={20} className="flex-shrink-0"/>
-                                {!isDesktopCollapsed && <span className="whitespace-nowrap">Versiegeschiedenis</span>}
-                            </button>
-                            
-                            {userData.role === 'admin' && (
-                                <button onClick={() => switchTab('admin')} className={`flex items-center py-3 rounded-xl transition-all font-medium ${isDesktopCollapsed ? 'justify-center px-0 mx-2' : 'gap-3 px-4'} ${activeTab === 'admin' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'hover:bg-stone-800 text-stone-300 border border-transparent'}`} title={isDesktopCollapsed ? "Systeem Admin" : ""}>
-                                    <Shield size={20} className="flex-shrink-0"/>
-                                    {!isDesktopCollapsed && <span className="whitespace-nowrap">Systeem Admin</span>}
-                                </button>
-                            )}
                         </div>
-                        <div className="mt-6 pt-4 border-t border-stone-800 text-center">
+                        <div className="mt-6 pt-4 border-t border-stone-800 flex flex-col items-center justify-center gap-1 pb-2">
                             {!isDesktopCollapsed && <p className="text-xs font-bold text-stone-600 tracking-wider">© Copyright by Jaider</p>}
+                            <button onClick={() => switchTab('changelog')} className={`text-[10px] font-bold text-stone-500 hover:text-amber-500 transition-colors flex items-center gap-1 ${activeTab === 'changelog' ? 'text-amber-500' : ''}`}>
+                                v{CHANGELOG[0].version}
+                            </button>
                         </div>
                     </div>
                 </nav>
